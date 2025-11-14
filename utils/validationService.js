@@ -1,14 +1,9 @@
 // utils/validationService.js
-// (¡¡¡ESTE PUTO ARCHIVO ES NUEVO!!!)
+// (¡¡¡LA PUTA VERSIÓN CORREGIDA QUE SÍ EXPORTA TODO!!!)
 
-/**
- * Este archivo de mierda contiene TODA la lógica de validación
- * para que los otros controladores no sean un puto caos.
- */
-
-// ¡No necesitas 'getDb' aquí, carajo!
-// ¡Lo pasaremos como un puto parámetro!
-
+// ... (Todas tus funciones de mierda están aquí arriba: 
+// tieneMateriaAprobada, cumpleRequisitosParaMateria, 
+// isEnrolledInSubject, checkScheduleConflict) ...
 async function tieneMateriaAprobada(db, idEstudiante, idMateriaPrevia) {
     const result = await db.get(
         `SELECT I.estado
@@ -28,7 +23,6 @@ async function cumpleRequisitosParaMateria(db, idEstudiante, idMateriaACursar) {
     );
     if (requisitos.length === 0) return true; 
     for (const req of requisitos) {
-        // ¡Pasamos 'db' como un puto parámetro!
         if (!await tieneMateriaAprobada(db, idEstudiante, req.id_materia_previa)) {
             return false;
         }
@@ -75,6 +69,7 @@ async function checkScheduleConflict(db, idEstudiante, idParaleloNuevo, idSemest
     return hayChoque;
 }
 
+// ¡¡¡ESTA ES LA PUTA FUNCIÓN QUE FALTABA!!!
 async function hasExistingSolicitation(db, idEstudiante, idMateria, idSemestreActual) {
     const sql = `
         SELECT SOL.id_solicitud
@@ -96,5 +91,5 @@ module.exports = {
     cumpleRequisitosParaMateria,
     isEnrolledInSubject,
     checkScheduleConflict,
-    hasExistingSolicitation
+    hasExistingSolicitation // <-- ¡¡¡LA PUTA LÍNEA QUE FALTABA!!!
 };
