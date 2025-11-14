@@ -1,8 +1,13 @@
+// controllers/registroController.js
+// (¡¡¡LA PUTA VERSIÓN CORREGIDA CON EL ALIAS 'estado'!!!)
 
+/**
+ * Crea los controladores de registro académico.
+ * @param {Function} getDb - Función para obtener la instancia de la BD.
+ */
 module.exports = function(getDb) {
     
- 
-
+    // ... (Todas las funciones de validación de mierda se quedan igual) ...
     async function tieneMateriaAprobada(idEstudiante, idMateriaPrevia) {
         const db = getDb();
         const result = await db.get(
@@ -15,7 +20,6 @@ module.exports = function(getDb) {
         );
         return !!result;
     }
-
     async function cumpleRequisitosParaMateria(idEstudiante, idMateriaACursar) {
         const db = getDb();
         const requisitos = await db.all(
@@ -23,7 +27,6 @@ module.exports = function(getDb) {
             [idMateriaACursar]
         );
         if (requisitos.length === 0) return true; 
-
         for (const req of requisitos) {
             if (!await tieneMateriaAprobada(idEstudiante, req.id_materia_previa)) {
                 return false;
@@ -31,7 +34,6 @@ module.exports = function(getDb) {
         }
         return true;
     }
-
     async function isEnrolledInSubject(idEstudiante, idMateria, idSemestreActual) {
         const db = getDb();
         const sql = `
@@ -47,17 +49,14 @@ module.exports = function(getDb) {
         const result = await db.get(sql, [idEstudiante, idMateria, idSemestreActual]);
         return !!result;
     }
-
     async function checkScheduleConflict(idEstudiante, idParaleloNuevo, idSemestreActual) {
         const db = getDb();
-        
         const nuevosHorariosMap = await db.all(
             'SELECT id_horario FROM Paralelo_Horario WHERE id_paralelo = ?',
             [idParaleloNuevo]
         );
         const nuevosHorariosIds = nuevosHorariosMap.map(h => h.id_horario);
         if (nuevosHorariosIds.length === 0) return false; 
-
         const sqlInscritos = `
             SELECT PH.id_horario
             FROM Inscripciones AS I
@@ -70,16 +69,15 @@ module.exports = function(getDb) {
         const inscritosHorariosMap = await db.all(sqlInscritos, [idEstudiante, idSemestreActual]);
         const inscritosHorariosIds = inscritosHorariosMap.map(h => h.id_horario);
         if (inscritosHorariosIds.length === 0) return false; 
-
         const inscritosSet = new Set(inscritosHorariosIds);
         const hayChoque = nuevosHorariosIds.some(id => inscritosSet.has(id));
-        
         return hayChoque;
     }
 
- 
+    // --- MANEJADORES DE RUTAS (ENDPOINTS) ---
 
     async function getSemestresInscritos(req, res) {
+        // ... (Este endpoint estaba bien, carajo) ...
         const { idEstudiante } = req.params;
         const sql = `
             SELECT DISTINCT 
@@ -100,12 +98,20 @@ module.exports = function(getDb) {
         }
     }
     
+    /**
+     * GET /api/registro/historial/:idEstudiante/:idSemestre
+     * Emula: RegistroRepository.getHistorialPorSemestre
+     */
     async function getHistorialPorSemestre(req, res) {
         const { idEstudiante, idSemestre } = req.params;
+        
+        // ¡¡¡LA PUTA CIRUGÍA #2 ESTÁ AQUÍ!!!
+        // ¡Cambié 'I.estado AS estadoDB' por 'I.estado AS estado'!
+        // ¡Ahora tu 'HistorialMateria.fromMap' (que busca 'map['estado']') va a funcionar!
         const sql = `
             SELECT 
                 M.nombre AS nombre_materia,
-                I.estado AS estadoDB, 
+                I.estado AS estado, 
                 I.parcial1, I.parcial2, I.examen_final, I.segundo_turno
             FROM Inscripciones AS I
             JOIN Paralelos_Semestre AS PS ON I.id_paralelo = PS.id_paralelo
@@ -122,13 +128,12 @@ module.exports = function(getDb) {
         }
     }
 
+    // ... (El resto de los POSTs de mierda se quedan igual) ...
     async function inscribirEstudiante(req, res) {
         const { idEstudiante, idParalelo, idMateria, idSemestreActual } = req.body;
-
         if (!idEstudiante || !idParalelo || !idMateria || !idSemestreActual) {
             return res.status(400).json({ error: 'Faltan campos requeridos (idEstudiante, idParalelo, idMateria, idSemestreActual).' });
         }
-        
         try {
             if (await isEnrolledInSubject(idEstudiante, idMateria, idSemestreActual)) {
                 return res.status(409).json({ error: 'Ya está inscrito en otro paralelo de esta materia.' });
@@ -139,18 +144,15 @@ module.exports = function(getDb) {
             if (!await cumpleRequisitosParaMateria(idEstudiante, idMateria)) {
                 return res.status(403).json({ error: 'No cumple los requisitos. Debe enviar una solicitud.' });
             }
-
             const db = getDb();
             const result = await db.run(
                 'INSERT INTO Inscripciones (id_estudiante, id_paralelo, estado, fecha_inscripcion) VALUES (?, ?, ?, ?)',
                 [idEstudiante, idParalelo, 'Cursando', new Date().toISOString()]
             );
-
             res.status(201).json({ 
                 message: 'Inscripción exitosa.', 
                 id_inscripcion: result.lastID 
             });
-
         } catch (error) {
             console.error('Error en inscribirEstudiante:', error.message);
             if (error.message.includes('UNIQUE constraint failed')) {
@@ -159,46 +161,37 @@ module.exports = function(getDb) {
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
-
     async function retirarMateria(req, res) {
         const { idEstudiante, idParalelo } = req.body; 
-        
         if (!idEstudiante || !idParalelo) {
             return res.status(400).json({ error: 'Faltan campos (idEstudiante, idParalelo).' });
         }
-
         try {
             const db = getDb();
             const result = await db.run(
                 'DELETE FROM Inscripciones WHERE id_estudiante = ? AND id_paralelo = ? AND estado = ?',
                 [idEstudiante, idParalelo, 'Cursando']
             );
-
             if (result.changes === 0) {
                 return res.status(404).json({ error: 'Materia no encontrada o no está en estado "Cursando".' });
             }
-            
             res.json({ message: 'Materia retirada exitosamente.' });
         } catch (error) {
             console.error('Error en retirarMateria:', error.message);
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
-
     async function enviarSolicitud(req, res) {
         const { idEstudiante, idParalelo, motivo } = req.body; 
-
         if (!idEstudiante || !idParalelo || !motivo) {
             return res.status(400).json({ error: 'Faltan campos (idEstudiante, idParalelo, motivo).' });
         }
-
         try {
             const db = getDb();
             const result = await db.run(
                 'INSERT INTO Solicitudes_Inscripcion (id_estudiante, id_paralelo, motivo, estado, fecha_solicitud) VALUES (?, ?, ?, ?, ?)',
                 [idEstudiante, idParalelo, motivo, 'En Espera', new Date().toISOString()]
             );
-
             res.status(201).json({ 
                 message: 'Solicitud enviada exitosamente.', 
                 id_solicitud: result.lastID
@@ -211,32 +204,26 @@ module.exports = function(getDb) {
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
-
     async function retirarSolicitud(req, res) {
         const { idEstudiante, idParalelo } = req.body;
-
         if (!idEstudiante || !idParalelo) {
             return res.status(400).json({ error: 'Faltan campos (idEstudiante, idParalelo).' });
         }
-        
         try {
             const db = getDb();
             const result = await db.run(
                 'DELETE FROM Solicitudes_Inscripcion WHERE id_estudiante = ? AND id_paralelo = ? AND estado = ?',
                 [idEstudiante, idParalelo, 'En Espera']
             );
-
             if (result.changes === 0) {
                 return res.status(404).json({ error: 'Solicitud no encontrada o no está "En Espera".' });
             }
-            
             res.json({ message: 'Solicitud cancelada exitosamente.' });
         } catch (error) {
             console.error('Error en retirarSolicitud:', error.message);
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
-
     async function getHorarioEstudiante(req, res) {
         const { idEstudiante, nombreSemestre } = req.params;
         const sql = `
@@ -269,15 +256,15 @@ module.exports = function(getDb) {
         }
     }
 
+    // ¡¡¡EL PUTO RETURN!!!
     return {
-      
         getSemestresInscritos,
         getHistorialPorSemestre,
         inscribirEstudiante,
         retirarMateria,
         enviarSolicitud,
         retirarSolicitud,
-        getHorarioEstudiante, 
+        getHorarioEstudiante,
         cumpleRequisitosParaMateria,
         isEnrolledInSubject,
         checkScheduleConflict,
