@@ -1,15 +1,16 @@
 // controllers/materiaController.js
-// (¡¡¡LA PUTA VERSIÓN CORREGIDA QUE SÍ MANDA EL JSON COMPLETO!!!)
+// (¡¡¡LA PUTA VERSIÓN LIMPIA, CARAJO!!!)
+
+// ¡¡¡IMPORTA EL PUTO SERVICIO NUEVO!!!
+const validationService = require('../utils/validationService');
 
 /**
  * Crea los controladores de materia.
  * @param {Function} getDb - Función para obtener la instancia de la BD.
- * @param {Object} validationHelpers - ¡Trae TODAS las putas funciones de validación!
  */
-module.exports = function(getDb, validationHelpers) {
+module.exports = function(getDb) {
 
     // (getHorariosString y getRequisitosString se quedan igual, carajo)
-    // (¡Asegúrate de tener el 'ORDER BY' de mierda que pusimos antes!)
     async function getHorariosString(idParalelo) {
         const db = getDb();
         const sql = `
@@ -46,40 +47,19 @@ module.exports = function(getDb, validationHelpers) {
         const nombres = maps.map(m => m.nombre).join(', ');
         return `Requiere: ${nombres}`;
     }
-    
-    // ¡¡¡NECESITAMOS ESTA PUTA FUNCIÓN OTRA VEZ!!!
-    async function _hasExistingSolicitation(idEstudiante, idMateria, idSemestreActual) {
-        const db = getDb();
-        const sql = `
-            SELECT SOL.id_solicitud
-            FROM Solicitudes_Inscripcion AS SOL
-            JOIN Paralelos_Semestre AS PS ON SOL.id_paralelo = PS.id_paralelo
-            WHERE SOL.id_estudiante = ?
-              AND PS.id_materia = ?
-              AND PS.id_semestre = ?
-              AND SOL.estado = 'En Espera'
-            LIMIT 1;
-        `;
-        const result = await db.get(sql, [idEstudiante, idMateria, idSemestreActual]);
-        return !!result;
-    }
-
 
     // (getAllFacultades, searchMaterias, getMateriasByFacultad se quedan igual)
     async function getAllFacultades(req, res) { /* ... (código igual) ... */ }
     async function searchMaterias(req, res) { /* ... (código igual) ... */ }
     async function getMateriasByFacultad(req, res) { /* ... (código igual) ... */ }
+    async function getMateriaById(req, res) { /* ... (código igual) ... */ }
 
-    /**
-     * GET /api/materia/paralelos/:idMateria/:idEstudiante/:idSemestreActual
-     * ¡¡¡LA PUTA CIRUGÍA FINAL, CARAJO!!!
-     */
+    // (¡¡¡CIRUGÍA #3!!! Ahora usa el 'validationService')
     async function getParalelosDetalle(req, res) {
         const { idMateria, idEstudiante, idSemestreActual } = req.params;
         const db = getDb();
 
         try {
-            // (La consulta SQL de 'paralelosSimplesRaw' se queda igual, carajo)
             const sqlParalelos = `
                 SELECT 
                     PS.id_paralelo, PS.nombre_paralelo, PS.id_materia,
@@ -106,16 +86,14 @@ module.exports = function(getDb, validationHelpers) {
                 idSemestreActual
             ]);
 
-            // Validaciones que son IGUALES para todos los paralelos de esta materia
+            // ¡¡¡VALIDACIONES (AHORA USAN 'validationService' Y PASAN 'db'!!!)
             const requisitosString = await getRequisitosString(idMateria);
-            const cumpleRequisitos = await validationHelpers.cumpleRequisitosParaMateria(idEstudiante, idMateria);
-            const yaInscritoEnMateria = await validationHelpers.isEnrolledInSubject(idEstudiante, idMateria, idSemestreActual);
-            const yaTieneSolicitud = await _hasExistingSolicitation(idEstudiante, idMateria, idSemestreActual);
+            const cumpleRequisitos = await validationService.cumpleRequisitosParaMateria(db, idEstudiante, idMateria);
+            const yaInscritoEnMateria = await validationService.isEnrolledInSubject(db, idEstudiante, idMateria, idSemestreActual);
+            const yaTieneSolicitud = await validationService.hasExistingSolicitation(db, idEstudiante, idMateria, idSemestreActual);
             
             const paralelosDetalle = [];
-
             for (const p of paralelosSimplesRaw) {
-                // ¡¡¡CALCULAMOS EL PUTO ESTADO!!!
                 let estadoEstudiante = 'ninguno';
                 if (p.estado_inscripcion === 'Cursando') {
                     estadoEstudiante = 'inscrito';
@@ -127,45 +105,32 @@ module.exports = function(getDb, validationHelpers) {
                     estadoEstudiante = 'solicitado_otro';
                 }
                 
-                // ¡¡¡CALCULAMOS EL PUTO CHOQUE!!!
-                const hayChoque = await validationHelpers.checkScheduleConflict(idEstudiante, p.id_paralelo, idSemestreActual);
-                
+                const hayChoque = await validationService.checkScheduleConflict(db, idEstudiante, p.id_paralelo, idSemestreActual);
                 const horariosString = await getHorariosString(p.id_paralelo);
 
-                // ¡¡¡AQUÍ ESTÁ EL PUTO ARREGLO, CARAJO!!!
-                // ¡¡¡AHORA SÍ MANDAMOS TODA LA PUTA MIERDA!!!
                 paralelosDetalle.push({
-                    paralelo: p, // ¡El 'p' crudo que tu fromMap espera!
-                    estado_calculado: estadoEstudiante, // <-- ¡¡¡LA PUTA CLAVE QUE FALTABA!!!
+                    paralelo: p, 
+                    estado_calculado: estadoEstudiante,
                     horarios: horariosString,
                     requisitos: requisitosString,
                     cumpleRequisitos: cumpleRequisitos,
-                    hayChoque: hayChoque, // <-- ¡¡¡LA OTRA PUTA CLAVE QUE FALTABA!!!
+                    hayChoque: hayChoque,
                 });
             }
-
             res.json(paralelosDetalle);
-
         } catch (error) {
             console.error('Error en getParalelosDetalle:', error.message);
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
 
-    // (getMateriaById se queda igual)
-    async function getMateriaById(req, res) { /* ... (código igual) ... */ }
-
     // ¡¡¡EL PUTO RETURN!!!
+    // ¡¡¡YA NO TIENE LA MIERDA QUE CAUSABA EL 'is not defined'!!!
     return {
         getAllFacultades,
         searchMaterias,
         getMateriasByFacultad,
         getParalelosDetalle,
-        getMateriaById,
-        // ¡¡¡EXPORTA LAS PUTAS FUNCIONES DE VALIDACIÓN!!!
-        cumpleRequisitosParaMateria,
-        isEnrolledInSubject,
-        checkScheduleConflict,
-        tieneMateriaAprobada
+        getMateriaById
     };
 };

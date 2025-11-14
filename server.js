@@ -1,4 +1,4 @@
-
+// server.js (¡¡¡LA PUTA VERSIÓN LIMPIA Y FINAL!!!)
 
 console.log("Paso 1: Arrancando server.js...");
 
@@ -12,6 +12,7 @@ console.log("Paso 1.3: cors cargado.");
 const initializeDatabase = require('./config/database');
 console.log("Paso 1.4: database.js cargado.");
 
+// Importar las "fábricas" de controladores
 console.log("Paso 2: Cargando authController...");
 const createAuthControlller = require('./controllers/authController');
 console.log("Paso 2.1: ¡authController CARGADO!");
@@ -39,11 +40,9 @@ const PORT = process.env.PORT || 3000;
 const app = express();
 console.log("Paso 7: App de Express creada.");
 
-
 app.use(cors());
 app.use(express.json());
 console.log("Paso 8: Middlewares (cors, json) listos.");
-
 
 async function main() {
     console.log("Paso 9: Entrando a main()...");
@@ -54,33 +53,30 @@ async function main() {
 
         const getDb = () => db;
 
- 
+        // ¡¡¡LA PUTA CIRUGÍA #4!!!
+        // ¡¡¡YA NO HAY PUTA INYECCIÓN DE DEPENDENCIA DE MIERDA!!!
         console.log("Paso 11: Creando controladores...");
         const registroController = createRegistroController(getDb);
         const authController = createAuthControlller(getDb);
-        const materiaController = createMateriaController(getDb, registroController);
+        const materiaController = createMateriaController(getDb); // <-- ¡MÁS LIMPIO, CARAJO!
 
         console.log("Paso 12: Creando rutas...");
         const authRoutes = createAuthRoutes(authController); 
         const registroRoutes = createRegistroRoutes(registroController, authMiddleware);
         const materiaRoutes = createMateriaRoutes(materiaController, authMiddleware);
 
-    
         console.log("Paso 13: Usando rutas...");
         app.use('/api/auth', authRoutes);
         app.use('/api/registro', registroRoutes);
         app.use('/api/materia', materiaRoutes);
 
-      
         app.get('/', (req, res) => {
             res.send('API del Sistema Académico funcionando. ¡Conecta tu app de Flutter!');
         });
 
-      
         console.log(`Paso 14: Arrancando servidor en puerto ${PORT}...`);
         app.listen(PORT, () => {
             console.log(`Servidor corriendo en http://localhost:${PORT}`);
-            
         });
 
     } catch (error) {
@@ -88,6 +84,5 @@ async function main() {
         process.exit(1); 
     }
 }
-
 
 main();
