@@ -1,7 +1,8 @@
 
 module.exports = function(getDb) {
     
-   
+ 
+
     async function tieneMateriaAprobada(idEstudiante, idMateriaPrevia) {
         const db = getDb();
         const result = await db.get(
@@ -12,10 +13,9 @@ module.exports = function(getDb) {
              LIMIT 1`,
             [idEstudiante, idMateriaPrevia]
         );
-        return !!result; 
+        return !!result;
     }
 
-    
     async function cumpleRequisitosParaMateria(idEstudiante, idMateriaACursar) {
         const db = getDb();
         const requisitos = await db.all(
@@ -26,13 +26,12 @@ module.exports = function(getDb) {
 
         for (const req of requisitos) {
             if (!await tieneMateriaAprobada(idEstudiante, req.id_materia_previa)) {
-                return false; 
+                return false;
             }
         }
-        return true; 
+        return true;
     }
 
-   
     async function isEnrolledInSubject(idEstudiante, idMateria, idSemestreActual) {
         const db = getDb();
         const sql = `
@@ -49,10 +48,8 @@ module.exports = function(getDb) {
         return !!result;
     }
 
-    
     async function checkScheduleConflict(idEstudiante, idParaleloNuevo, idSemestreActual) {
         const db = getDb();
-        
         
         const nuevosHorariosMap = await db.all(
             'SELECT id_horario FROM Paralelo_Horario WHERE id_paralelo = ?',
@@ -60,6 +57,7 @@ module.exports = function(getDb) {
         );
         const nuevosHorariosIds = nuevosHorariosMap.map(h => h.id_horario);
         if (nuevosHorariosIds.length === 0) return false; 
+
         const sqlInscritos = `
             SELECT PH.id_horario
             FROM Inscripciones AS I
@@ -72,14 +70,15 @@ module.exports = function(getDb) {
         const inscritosHorariosMap = await db.all(sqlInscritos, [idEstudiante, idSemestreActual]);
         const inscritosHorariosIds = inscritosHorariosMap.map(h => h.id_horario);
         if (inscritosHorariosIds.length === 0) return false; 
-      
+
         const inscritosSet = new Set(inscritosHorariosIds);
         const hayChoque = nuevosHorariosIds.some(id => inscritosSet.has(id));
         
         return hayChoque;
     }
 
-  
+ 
+
     async function getSemestresInscritos(req, res) {
         const { idEstudiante } = req.params;
         const sql = `
@@ -94,14 +93,13 @@ module.exports = function(getDb) {
         try {
             const db = getDb();
             const semestres = await db.all(sql, [idEstudiante]);
-            res.json(semestres);
+            res.json(semestres); 
         } catch (error) {
             console.error('Error al obtener semestres inscritos:', error.message);
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
-   
-  
+    
     async function getHistorialPorSemestre(req, res) {
         const { idEstudiante, idSemestre } = req.params;
         const sql = `
@@ -124,7 +122,6 @@ module.exports = function(getDb) {
         }
     }
 
-  
     async function inscribirEstudiante(req, res) {
         const { idEstudiante, idParalelo, idMateria, idSemestreActual } = req.body;
 
@@ -136,11 +133,9 @@ module.exports = function(getDb) {
             if (await isEnrolledInSubject(idEstudiante, idMateria, idSemestreActual)) {
                 return res.status(409).json({ error: 'Ya está inscrito en otro paralelo de esta materia.' });
             }
-
             if (await checkScheduleConflict(idEstudiante, idParalelo, idSemestreActual)) {
                 return res.status(409).json({ error: 'Existe un choque de horario con una materia ya inscrita.' });
             }
-
             if (!await cumpleRequisitosParaMateria(idEstudiante, idMateria)) {
                 return res.status(403).json({ error: 'No cumple los requisitos. Debe enviar una solicitud.' });
             }
@@ -165,7 +160,6 @@ module.exports = function(getDb) {
         }
     }
 
-   
     async function retirarMateria(req, res) {
         const { idEstudiante, idParalelo } = req.body; 
         
@@ -190,7 +184,6 @@ module.exports = function(getDb) {
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
-
 
     async function enviarSolicitud(req, res) {
         const { idEstudiante, idParalelo, motivo } = req.body; 
@@ -219,7 +212,6 @@ module.exports = function(getDb) {
         }
     }
 
-   
     async function retirarSolicitud(req, res) {
         const { idEstudiante, idParalelo } = req.body;
 
@@ -245,14 +237,47 @@ module.exports = function(getDb) {
         }
     }
 
-  
+    async function getHorarioEstudiante(req, res) {
+        const { idEstudiante, nombreSemestre } = req.params;
+        const sql = `
+            SELECT 
+                H.dia, H.hora_inicio, H.hora_fin, 
+                M.nombre AS materia_nombre, 
+                A.nombre AS aula_nombre, 
+                D.nombre AS docente_nombre,
+                D.apellido AS docente_apellido
+            FROM Inscripciones AS I
+            JOIN Paralelos_Semestre AS PS ON I.id_paralelo = PS.id_paralelo
+            JOIN Semestres AS S ON PS.id_semestre = S.id_semestre
+            JOIN Materias AS M ON PS.id_materia = M.id_materia
+            LEFT JOIN Aulas AS A ON PS.id_aula = A.id_aula
+            JOIN Docentes AS D ON PS.id_docente = D.id_docente
+            JOIN Paralelo_Horario AS PH ON PS.id_paralelo = PH.id_paralelo
+            JOIN Horarios AS H ON PH.id_horario = H.id_horario
+            WHERE 
+                I.id_estudiante = ? AND
+                S.nombre = ? AND
+                I.estado = 'Cursando';
+        `;
+        try {
+            const db = getDb();
+            const horario = await db.all(sql, [idEstudiante, nombreSemestre]);
+            res.json(horario);
+        } catch (error) {
+            console.error('Error en getHorarioEstudiante:', error.message);
+            res.status(500).json({ error: 'Error interno del servidor.' });
+        }
+    }
+
     return {
+      
         getSemestresInscritos,
         getHistorialPorSemestre,
         inscribirEstudiante,
         retirarMateria,
         enviarSolicitud,
         retirarSolicitud,
+        getHorarioEstudiante, 
         cumpleRequisitosParaMateria,
         isEnrolledInSubject,
         checkScheduleConflict,
