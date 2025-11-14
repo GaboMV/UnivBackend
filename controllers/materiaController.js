@@ -1,11 +1,5 @@
 module.exports = function(getDb, validationHelpers) {
 
-    // --- FUNCIONES AUXILIARES (Traducción de MateriaRepository) ---
-
-    /**
-     * Obtiene los horarios formateados como string.
-     * Emula: MateriaRepository.getHorariosString
-     */
     async function getHorariosString(idParalelo) {
         const db = getDb();
         const sql = `
@@ -18,14 +12,10 @@ module.exports = function(getDb, validationHelpers) {
         const maps = await db.all(sql, [idParalelo]);
         if (maps.length === 0) return "";
         
-        // Formato: "Lunes 08:00-10:00, Miércoles 08:00-10:00"
         return maps.map(h => `${h.dia} ${h.hora_inicio}-${h.hora_fin}`).join(', ');
     }
 
-    /**
-     * Obtiene los requisitos formateados como string.
-     * Emula: MateriaRepository.getRequisitosString
-     */
+    
     async function getRequisitosString(idMateria) {
         const db = getDb();
         const sql = `
@@ -41,12 +31,7 @@ module.exports = function(getDb, validationHelpers) {
         return `Requiere: ${nombres}`;
     }
 
-    // --- MANEJADORES de RUTAS (ENDPOINTS) ---
-
-    /**
-     * GET /api/materia/facultades
-     * Emula: MateriaRepository.getAllFacultades
-     */
+   
     async function getAllFacultades(req, res) {
         try {
             const db = getDb();
@@ -58,10 +43,7 @@ module.exports = function(getDb, validationHelpers) {
         }
     }
 
-    /**
-     * GET /api/materia/search/:query
-     * Emula: MateriaRepository.searchMaterias
-     */
+  
     async function searchMaterias(req, res) {
         const { query } = req.params;
         const searchTerm = `%${query}%`;
@@ -79,10 +61,7 @@ module.exports = function(getDb, validationHelpers) {
         }
     }
 
-    /**
-     * GET /api/materia/by-facultad/:idFacultad
-     * Emula: MateriaRepository.getMateriasByFacultad
-     */
+ 
     async function getMateriasByFacultad(req, res) {
         const { idFacultad } = req.params;
         try {
@@ -98,17 +77,13 @@ module.exports = function(getDb, validationHelpers) {
         }
     }
 
-    /**
-     * GET /api/materia/paralelos/:idMateria/:idEstudiante/:idSemestreActual
-     * Emula: MateriaRepository.getParalelosConEstado y ensambla ParaleloDetalleCompleto
-     */
+   
     async function getParalelosDetalle(req, res) {
         const { idMateria, idEstudiante, idSemestreActual } = req.params;
         const db = getDb();
 
         try {
-            // 1. Obtener la lista base de paralelos con su estado (ParaleloSimple)
-            // Emula: MateriaRepository.getParalelosConEstado
+          
             const sqlParalelos = `
                 SELECT 
                     PS.id_paralelo, PS.nombre_paralelo, PS.id_materia,
@@ -136,30 +111,24 @@ module.exports = function(getDb, validationHelpers) {
                 idSemestreActual
             ]);
 
-            // 2. Procesar y enriquecer (Emula ParaleloSimple.fromMap y ParaleloDetalleCompleto)
             
-            // Obtenemos los requisitos UNA SOLA VEZ
             const requisitosString = await getRequisitosString(idMateria);
-            // Verificamos si cumple requisitos UNA SOLA VEZ
             const cumpleRequisitos = await validationHelpers.cumpleRequisitosParaMateria(idEstudiante, idMateria);
 
             const paralelosDetalle = [];
 
             for (const p of paralelosSimplesRaw) {
-                // Lógica de ParaleloSimple.fromMap para 'estadoEstudiante'
                 let estadoEstudiante = 'ninguno'; // 0
                 if (p.estado_inscripcion) {
                     if (p.estado_inscripcion === 'Cursando') {
                         estadoEstudiante = 'inscrito'; // 1
                     }
-                    // FIX 1: 'Retirada' se trata como 'ninguno'
                 } else if (p.estado_solicitud) {
                     if (p.estado_solicitud === 'En Espera') {
                         estadoEstudiante = 'solicitado'; // 2
                     }
                 }
 
-                // Ensamblamos el ParaleloSimple (adaptado a JS)
                 const paraleloSimple = {
                     idParalelo: p.id_paralelo,
                     nombreParalelo: p.nombre_paralelo,
@@ -168,20 +137,17 @@ module.exports = function(getDb, validationHelpers) {
                     aula: p.aula_nombre || 'Sin aula',
                     idMateria: p.id_materia,
                     creditos: p.creditos,
-                    estadoEstudiante: estadoEstudiante, // Usamos string en lugar de enum
+                    estadoEstudiante: estadoEstudiante, 
                 };
 
-                // 3. Obtener horarios (Emula MateriaRepository.getHorariosString)
                 const horariosString = await getHorariosString(p.id_paralelo);
 
-                // 4. Ensamblar DTO Final (ParaleloDetalleCompleto)
                 paralelosDetalle.push({
                     paralelo: paraleloSimple,
                     horarios: horariosString,
                     requisitos: requisitosString,
                     cumpleRequisitos: cumpleRequisitos,
-                    // La lógica de 'textoBoton' y 'lecturaTts' se deja al cliente (Flutter)
-                    // que ya tiene esa lógica implementada en el DTO.
+                   
                 });
             }
 

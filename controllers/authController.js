@@ -1,16 +1,11 @@
-// controllers/authController.js
-const bcrypt = require('bcryptjs');
 
-/**
- * Crea los controladores de autenticación.
- * @param {Function} getDb - Función para obtener la instancia de la BD.
- */
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken'); 
+
+
 module.exports = function(getDb) {
     
-    /**
-     * POST /api/auth/login
-     * Autentica a un estudiante.
-     */
+
     async function login(req, res) {
         const { usuario, contrasena } = req.body;
         if (!usuario || !contrasena) {
@@ -24,33 +19,38 @@ module.exports = function(getDb) {
                 [usuario]
             );
 
-            // --- ¡¡¡DEBUG, CARAJO!!! ---
-            console.log("================== DEBUG LOGIN ==================");
+      
+
             if (!estudiante) {
-                console.log(`Error: Usuario '${usuario}' NO ENCONTRADO en la DB.`);
-                console.log("===============================================");
                 return res.status(401).json({ error: 'Credenciales inválidas.' });
             }
-            console.log(`Usuario '${usuario}' ENCONTRADO.`);
-            console.log(`Comparando HASH de la DB: [${estudiante.contrasena}]`);
-            console.log(`Contra Texto Plano de Postman: [${contrasena}]`);
-            // --- FIN DEBUG ---
 
             const isMatch = await bcrypt.compare(contrasena, estudiante.contrasena);
 
             if (!isMatch) {
-                console.log("Resultado: ¡LOS HASHES NO COINCIDEN! (401)");
-                console.log("===============================================");
                 return res.status(401).json({ error: 'Credenciales inválidas.' });
             }
 
-            // Éxito
-            console.log("Resultado: ¡LOGIN EXITOSO! (200)");
-            console.log("===============================================");
+          
+            const payload = {
+                id: estudiante.id_estudiante,
+                usuario: estudiante.usuario,
+                nombre: estudiante.nombre
+            };
+
+           
+            const token = jwt.sign(
+                payload, 
+                process.env.JWT_SECRET, 
+                { expiresIn: '1h' }     
+            );
+
+      
             const { contrasena: _, ...estudianteSinContrasena } = estudiante;
             
             res.json({
                 message: 'Autenticación exitosa.',
+                token: token,
                 estudiante: estudianteSinContrasena
             });
 

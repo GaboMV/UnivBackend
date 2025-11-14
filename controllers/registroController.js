@@ -1,15 +1,7 @@
-/**
- * Crea los controladores de registro académico.
- * @param {Function} getDb - Función para obtener la instancia de la BD.
- */
+
 module.exports = function(getDb) {
     
-    // --- FUNCIONES DE VALIDACIÓN (Traducción de RegistroRepository) ---
-
-    /**
-     * Verifica si el estudiante ha aprobado una materia previa.
-     * Emula: RegistroRepository._tieneMateriaAprobada
-     */
+   
     async function tieneMateriaAprobada(idEstudiante, idMateriaPrevia) {
         const db = getDb();
         const result = await db.get(
@@ -20,33 +12,27 @@ module.exports = function(getDb) {
              LIMIT 1`,
             [idEstudiante, idMateriaPrevia]
         );
-        return !!result; // Convierte a booleano (true si encuentra algo, false si no)
+        return !!result; 
     }
 
-    /**
-     * Verifica si el estudiante cumple todos los requisitos para una materia.
-     * Emula: RegistroRepository.cumpleRequisitosParaMateria
-     */
+    
     async function cumpleRequisitosParaMateria(idEstudiante, idMateriaACursar) {
         const db = getDb();
         const requisitos = await db.all(
             'SELECT id_materia_previa FROM Requisitos WHERE id_materia_cursar = ?',
             [idMateriaACursar]
         );
-        if (requisitos.length === 0) return true; // No hay requisitos
+        if (requisitos.length === 0) return true; 
 
         for (const req of requisitos) {
             if (!await tieneMateriaAprobada(idEstudiante, req.id_materia_previa)) {
-                return false; // Falla si no aprueba al menos una
+                return false; 
             }
         }
-        return true; // Cumple con todas
+        return true; 
     }
 
-    /**
-     * Revisa si el estudiante ya está inscrito en otra paralelo DE LA MISMA MATERIA.
-     * Emula: RegistroRepository.isEnrolledInSubject
-     */
+   
     async function isEnrolledInSubject(idEstudiante, idMateria, idSemestreActual) {
         const db = getDb();
         const sql = `
@@ -63,22 +49,17 @@ module.exports = function(getDb) {
         return !!result;
     }
 
-    /**
-     * Revisa si hay choque de horario con materias ya inscritas.
-     * Emula: RegistroRepository.checkScheduleConflict
-     */
+    
     async function checkScheduleConflict(idEstudiante, idParaleloNuevo, idSemestreActual) {
         const db = getDb();
         
-        // 1. Obtener IDs de horario del NUEVO paralelo
+        
         const nuevosHorariosMap = await db.all(
             'SELECT id_horario FROM Paralelo_Horario WHERE id_paralelo = ?',
             [idParaleloNuevo]
         );
         const nuevosHorariosIds = nuevosHorariosMap.map(h => h.id_horario);
-        if (nuevosHorariosIds.length === 0) return false; // El paralelo nuevo no tiene horario
-
-        // 2. Obtener IDs de horario de TODAS las materias YA INSCRITAS
+        if (nuevosHorariosIds.length === 0) return false; 
         const sqlInscritos = `
             SELECT PH.id_horario
             FROM Inscripciones AS I
@@ -90,21 +71,15 @@ module.exports = function(getDb) {
         `;
         const inscritosHorariosMap = await db.all(sqlInscritos, [idEstudiante, idSemestreActual]);
         const inscritosHorariosIds = inscritosHorariosMap.map(h => h.id_horario);
-        if (inscritosHorariosIds.length === 0) return false; // No tiene otras materias inscritas
-
-        // 3. Comparar si hay alguna intersección
+        if (inscritosHorariosIds.length === 0) return false; 
+      
         const inscritosSet = new Set(inscritosHorariosIds);
         const hayChoque = nuevosHorariosIds.some(id => inscritosSet.has(id));
         
         return hayChoque;
     }
 
-    // --- MANEJADORES DE RUTAS (ENDPOINTS) ---
-
-    /**
-     * GET /api/registro/semestres/:idEstudiante
-     * Emula: RegistroRepository.getSemestresInscritos
-     */
+  
     async function getSemestresInscritos(req, res) {
         const { idEstudiante } = req.params;
         const sql = `
@@ -119,17 +94,14 @@ module.exports = function(getDb) {
         try {
             const db = getDb();
             const semestres = await db.all(sql, [idEstudiante]);
-            res.json(semestres); // Devuelve DTO Semestre (id_semestre, nombre)
+            res.json(semestres);
         } catch (error) {
             console.error('Error al obtener semestres inscritos:', error.message);
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
-    
-    /**
-     * GET /api/registro/historial/:idEstudiante/:idSemestre
-     * Emula: RegistroRepository.getHistorialPorSemestre
-     */
+   
+  
     async function getHistorialPorSemestre(req, res) {
         const { idEstudiante, idSemestre } = req.params;
         const sql = `
@@ -145,8 +117,6 @@ module.exports = function(getDb) {
         try {
             const db = getDb();
             const historial = await db.all(sql, [idEstudiante, idSemestre]);
-            // El DTO HistorialMateria de Flutter maneja el cálculo de nota final y estado.
-            // Enviamos los datos crudos, renombrando 'estado' a 'estadoDB' para que coincida con el DTO.
             res.json(historial); 
         } catch (error) {
             console.error('Error al obtener historial por semestre:', error.message);
@@ -154,12 +124,8 @@ module.exports = function(getDb) {
         }
     }
 
-    /**
-     * POST /api/registro/inscribir
-     * Emula: RegistroRepository.inscribirEstudiante + Validaciones
-     */
+  
     async function inscribirEstudiante(req, res) {
-        // idSemestreActual (4) debe venir del cliente
         const { idEstudiante, idParalelo, idMateria, idSemestreActual } = req.body;
 
         if (!idEstudiante || !idParalelo || !idMateria || !idSemestreActual) {
@@ -167,22 +133,18 @@ module.exports = function(getDb) {
         }
         
         try {
-            // 1. Verificar si ya está inscrito en la misma materia (otro paralelo)
             if (await isEnrolledInSubject(idEstudiante, idMateria, idSemestreActual)) {
                 return res.status(409).json({ error: 'Ya está inscrito en otro paralelo de esta materia.' });
             }
 
-            // 2. Verificar choque de horario
             if (await checkScheduleConflict(idEstudiante, idParalelo, idSemestreActual)) {
                 return res.status(409).json({ error: 'Existe un choque de horario con una materia ya inscrita.' });
             }
 
-            // 3. Verificar cumplimiento de requisitos (Si falla, el cliente debe enviar solicitud)
             if (!await cumpleRequisitosParaMateria(idEstudiante, idMateria)) {
                 return res.status(403).json({ error: 'No cumple los requisitos. Debe enviar una solicitud.' });
             }
 
-            // 4. Inserción en Inscripciones
             const db = getDb();
             const result = await db.run(
                 'INSERT INTO Inscripciones (id_estudiante, id_paralelo, estado, fecha_inscripcion) VALUES (?, ?, ?, ?)',
@@ -196,7 +158,6 @@ module.exports = function(getDb) {
 
         } catch (error) {
             console.error('Error en inscribirEstudiante:', error.message);
-            // Manejamos el error de UNIQUE constraint (ya inscrito o solicitud pendiente)
             if (error.message.includes('UNIQUE constraint failed')) {
                 return res.status(409).json({ error: 'Restricción ÚNICA fallida (ya inscrito o solicitud pendiente).' });
             }
@@ -204,10 +165,7 @@ module.exports = function(getDb) {
         }
     }
 
-    /**
-     * POST /api/registro/retirar
-     * Emula: RegistroRepository.retirarMateria (con lógica DELETE)
-     */
+   
     async function retirarMateria(req, res) {
         const { idEstudiante, idParalelo } = req.body; 
         
@@ -217,7 +175,6 @@ module.exports = function(getDb) {
 
         try {
             const db = getDb();
-            // Lógica de "Retirar" es un DELETE (FIX 1 en tu repo)
             const result = await db.run(
                 'DELETE FROM Inscripciones WHERE id_estudiante = ? AND id_paralelo = ? AND estado = ?',
                 [idEstudiante, idParalelo, 'Cursando']
@@ -234,10 +191,7 @@ module.exports = function(getDb) {
         }
     }
 
-    /**
-     * POST /api/registro/solicitud/enviar
-     * Emula: RegistroRepository.enviarSolicitud
-     */
+
     async function enviarSolicitud(req, res) {
         const { idEstudiante, idParalelo, motivo } = req.body; 
 
@@ -265,10 +219,7 @@ module.exports = function(getDb) {
         }
     }
 
-    /**
-     * POST /api/registro/solicitud/retirar
-     * Emula: RegistroRepository.retirarSolicitud
-     */
+   
     async function retirarSolicitud(req, res) {
         const { idEstudiante, idParalelo } = req.body;
 
@@ -294,17 +245,14 @@ module.exports = function(getDb) {
         }
     }
 
-    // Exportamos las funciones de ruta Y las funciones de validación
-    // para que materiaController pueda usarlas.
+  
     return {
-        // Manejadores de ruta
         getSemestresInscritos,
         getHistorialPorSemestre,
         inscribirEstudiante,
         retirarMateria,
         enviarSolicitud,
         retirarSolicitud,
-        // Funciones de validación (para que materiaController las use)
         cumpleRequisitosParaMateria,
         isEnrolledInSubject,
         checkScheduleConflict,
