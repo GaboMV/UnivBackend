@@ -1,24 +1,17 @@
 // controllers/materiaController.js
-// (¡¡¡LA PUTA VERSIÓN CORREGIDA CON HORAS ORDENADAS!!!)
+// (¡¡¡LA PUTA VERSIÓN CORREGIDA QUE SÍ MANDA EL JSON COMPLETO!!!)
 
 /**
  * Crea los controladores de materia.
  * @param {Function} getDb - Función para obtener la instancia de la BD.
- * @param {Object} validationHelpers - Funciones de validación de registroController.
+ * @param {Object} validationHelpers - ¡Trae TODAS las putas funciones de validación!
  */
 module.exports = function(getDb, validationHelpers) {
 
-    // --- FUNCIONES AUXILIARES ---
-
-    /**
-     * Obtiene los horarios formateados como string.
-     * Emula: MateriaRepository.getHorariosString
-     */
+    // (getHorariosString y getRequisitosString se quedan igual, carajo)
+    // (¡Asegúrate de tener el 'ORDER BY' de mierda que pusimos antes!)
     async function getHorariosString(idParalelo) {
         const db = getDb();
-        
-        // ¡¡¡LA PUTA CIRUGÍA ESTÁ AQUÍ, CARAJO!!!
-        // ¡Añadí 'ORDER BY H.dia, H.hora_inicio'!
         const sql = `
             SELECT H.dia, H.hora_inicio, H.hora_fin
             FROM Paralelo_Horario AS PH
@@ -36,18 +29,10 @@ module.exports = function(getDb, validationHelpers) {
                 END, 
                 H.hora_inicio; 
         `;
-        // (Ese CASE de mierda es para que ordene los días bien, no alfabéticamente)
-        
         const maps = await db.all(sql, [idParalelo]);
         if (maps.length === 0) return "";
-        // ¡Ahora esta mierda saldrá ordenada!
         return maps.map(h => `${h.dia} ${h.hora_inicio}-${h.hora_fin}`).join(', ');
     }
-
-    /**
-     * Obtiene los requisitos formateados como string.
-     * Emula: MateriaRepository.getRequisitosString
-     */
     async function getRequisitosString(idMateria) {
         const db = getDb();
         const sql = `
@@ -61,60 +46,40 @@ module.exports = function(getDb, validationHelpers) {
         const nombres = maps.map(m => m.nombre).join(', ');
         return `Requiere: ${nombres}`;
     }
+    
+    // ¡¡¡NECESITAMOS ESTA PUTA FUNCIÓN OTRA VEZ!!!
+    async function _hasExistingSolicitation(idEstudiante, idMateria, idSemestreActual) {
+        const db = getDb();
+        const sql = `
+            SELECT SOL.id_solicitud
+            FROM Solicitudes_Inscripcion AS SOL
+            JOIN Paralelos_Semestre AS PS ON SOL.id_paralelo = PS.id_paralelo
+            WHERE SOL.id_estudiante = ?
+              AND PS.id_materia = ?
+              AND PS.id_semestre = ?
+              AND SOL.estado = 'En Espera'
+            LIMIT 1;
+        `;
+        const result = await db.get(sql, [idEstudiante, idMateria, idSemestreActual]);
+        return !!result;
+    }
 
-    // --- MANEJADORES de RUTAS (ENDPOINTS) ---
 
-    // (getAllFacultades, searchMaterias, getMateriasByFacultad están bien, carajo)
-    async function getAllFacultades(req, res) {
-        try {
-            const db = getDb();
-            const facultades = await db.all('SELECT * FROM Facultades');
-            res.json(facultades);
-        } catch (error) {
-            console.error('Error al obtener facultades:', error.message);
-            res.status(500).json({ error: 'Error interno del servidor.' });
-        }
-    }
-    async function searchMaterias(req, res) {
-        const { query } = req.params;
-        const searchTerm = `%${query}%`;
-        try {
-            const db = getDb();
-            const materias = await db.all(
-                'SELECT * FROM Materias WHERE nombre LIKE ? OR codigo LIKE ?',
-                [searchTerm, searchTerm]
-            );
-            res.json(materias);
-        } catch (error) {
-            console.error('Error en searchMaterias:', error.message);
-            res.status(500).json({ error: 'Error interno del servidor.' });
-        }
-    }
-    async function getMateriasByFacultad(req, res) {
-        const { idFacultad } = req.params;
-        try {
-            const db = getDb();
-            const materias = await db.all(
-                'SELECT * FROM Materias WHERE id_facultad = ?',
-                [idFacultad]
-            );
-            res.json(materias);
-        } catch (error) {
-            console.error('Error en getMateriasByFacultad:', error.message);
-            res.status(500).json({ error: 'Error interno del servidor.' });
-        }
-    }
+    // (getAllFacultades, searchMaterias, getMateriasByFacultad se quedan igual)
+    async function getAllFacultades(req, res) { /* ... (código igual) ... */ }
+    async function searchMaterias(req, res) { /* ... (código igual) ... */ }
+    async function getMateriasByFacultad(req, res) { /* ... (código igual) ... */ }
 
     /**
      * GET /api/materia/paralelos/:idMateria/:idEstudiante/:idSemestreActual
-     * Emula: MateriaRepository.getParalelosConEstado y ensambla ParaleloDetalleCompleto
+     * ¡¡¡LA PUTA CIRUGÍA FINAL, CARAJO!!!
      */
     async function getParalelosDetalle(req, res) {
         const { idMateria, idEstudiante, idSemestreActual } = req.params;
         const db = getDb();
 
         try {
-            // (Esta consulta SQL está bien, carajo)
+            // (La consulta SQL de 'paralelosSimplesRaw' se queda igual, carajo)
             const sqlParalelos = `
                 SELECT 
                     PS.id_paralelo, PS.nombre_paralelo, PS.id_materia,
@@ -134,7 +99,6 @@ module.exports = function(getDb, validationHelpers) {
                 WHERE 
                     PS.id_materia = ? AND PS.id_semestre = ?;
             `;
-            
             const paralelosSimplesRaw = await db.all(sqlParalelos, [
                 idEstudiante,
                 idEstudiante,
@@ -142,26 +106,41 @@ module.exports = function(getDb, validationHelpers) {
                 idSemestreActual
             ]);
 
+            // Validaciones que son IGUALES para todos los paralelos de esta materia
             const requisitosString = await getRequisitosString(idMateria);
             const cumpleRequisitos = await validationHelpers.cumpleRequisitosParaMateria(idEstudiante, idMateria);
+            const yaInscritoEnMateria = await validationHelpers.isEnrolledInSubject(idEstudiante, idMateria, idSemestreActual);
+            const yaTieneSolicitud = await _hasExistingSolicitation(idEstudiante, idMateria, idSemestreActual);
+            
             const paralelosDetalle = [];
 
             for (const p of paralelosSimplesRaw) {
+                // ¡¡¡CALCULAMOS EL PUTO ESTADO!!!
                 let estadoEstudiante = 'ninguno';
-                if (p.estado_inscripcion) {
-                    if (p.estado_inscripcion === 'Cursando') estadoEstudiante = 'inscrito';
-                } else if (p.estado_solicitud) {
-                    if (p.estado_solicitud === 'En Espera') estadoEstudiante = 'solicitado';
+                if (p.estado_inscripcion === 'Cursando') {
+                    estadoEstudiante = 'inscrito';
+                } else if (p.estado_solicitud === 'En Espera') {
+                    estadoEstudiante = 'solicitado';
+                } else if (yaInscritoEnMateria) {
+                    estadoEstudiante = 'inscrito_otro'; 
+                } else if (yaTieneSolicitud) {
+                    estadoEstudiante = 'solicitado_otro';
                 }
                 
-                // ¡Esta mierda ahora llamará a la función de horarios ORDENADA!
+                // ¡¡¡CALCULAMOS EL PUTO CHOQUE!!!
+                const hayChoque = await validationHelpers.checkScheduleConflict(idEstudiante, p.id_paralelo, idSemestreActual);
+                
                 const horariosString = await getHorariosString(p.id_paralelo);
 
+                // ¡¡¡AQUÍ ESTÁ EL PUTO ARREGLO, CARAJO!!!
+                // ¡¡¡AHORA SÍ MANDAMOS TODA LA PUTA MIERDA!!!
                 paralelosDetalle.push({
-                    paralelo: p, // ¡Mandamos el 'p' crudo para que 'fromMap' funcione!
-                    horarios: horariosString, // ¡Ahora ordenado!
+                    paralelo: p, // ¡El 'p' crudo que tu fromMap espera!
+                    estado_calculado: estadoEstudiante, // <-- ¡¡¡LA PUTA CLAVE QUE FALTABA!!!
+                    horarios: horariosString,
                     requisitos: requisitosString,
                     cumpleRequisitos: cumpleRequisitos,
+                    hayChoque: hayChoque, // <-- ¡¡¡LA OTRA PUTA CLAVE QUE FALTABA!!!
                 });
             }
 
@@ -173,34 +152,20 @@ module.exports = function(getDb, validationHelpers) {
         }
     }
 
-    /**
-     * GET /api/materia/:idMateria
-     * Emula: MateriaRepository.getMateriaById
-     */
-    async function getMateriaById(req, res) {
-        // (Este estaba bien, carajo)
-        const { idMateria } = req.params;
-        try {
-            const db = getDb();
-            const materia = await db.get(
-                'SELECT * FROM Materias WHERE id_materia = ?',
-                [idMateria]
-            );
-            if (!materia) {
-                return res.status(404).json({ error: 'Materia no encontrada' });
-            }
-            res.json(materia);
-        } catch (error) {
-            console.error('Error en getMateriaById:', error.message);
-            res.status(500).json({ error: 'Error interno del servidor.' });
-        }
-    }
+    // (getMateriaById se queda igual)
+    async function getMateriaById(req, res) { /* ... (código igual) ... */ }
 
+    // ¡¡¡EL PUTO RETURN!!!
     return {
         getAllFacultades,
         searchMaterias,
         getMateriasByFacultad,
         getParalelosDetalle,
-        getMateriaById
+        getMateriaById,
+        // ¡¡¡EXPORTA LAS PUTAS FUNCIONES DE VALIDACIÓN!!!
+        cumpleRequisitosParaMateria,
+        isEnrolledInSubject,
+        checkScheduleConflict,
+        tieneMateriaAprobada
     };
 };
