@@ -1,5 +1,5 @@
 // controllers/registroController.js
-// (¡¡¡LA PUTA VERSIÓN CORREGIDA CON EL ALIAS 'estado'!!!)
+// (¡¡¡LA PUTA VERSIÓN CORREGIDA CON INSCRIPCIÓN INTELIGENTE!!!)
 
 /**
  * Crea los controladores de registro académico.
@@ -7,7 +7,7 @@
  */
 module.exports = function(getDb) {
     
-    // ... (Todas las funciones de validación de mierda se quedan igual) ...
+    // --- FUNCIONES DE VALIDACIÓN (¡Se quedan igual, carajo!) ---
     async function tieneMateriaAprobada(idEstudiante, idMateriaPrevia) {
         const db = getDb();
         const result = await db.get(
@@ -74,10 +74,22 @@ module.exports = function(getDb) {
         return hayChoque;
     }
 
+    // ¡¡¡NUEVA FUNCIÓN AUXILIAR, CARAJO!!!
+    // (Movimos la lógica de 'enviarSolicitud' aquí para reutilizarla)
+    async function _enviarSolicitudInterna(idEstudiante, idParalelo, motivo) {
+        const db = getDb();
+        const result = await db.run(
+            'INSERT INTO Solicitudes_Inscripcion (id_estudiante, id_paralelo, motivo, estado, fecha_solicitud) VALUES (?, ?, ?, ?, ?)',
+            [idEstudiante, idParalelo, motivo, 'En Espera', new Date().toISOString()]
+        );
+        return result;
+    }
+
+
     // --- MANEJADORES DE RUTAS (ENDPOINTS) ---
 
+    // (getSemestresInscritos, getHistorialPorSemestre, retirarMateria, retirarSolicitud se quedan igual)
     async function getSemestresInscritos(req, res) {
-        // ... (Este endpoint estaba bien, carajo) ...
         const { idEstudiante } = req.params;
         const sql = `
             SELECT DISTINCT 
@@ -97,17 +109,8 @@ module.exports = function(getDb) {
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
-    
-    /**
-     * GET /api/registro/historial/:idEstudiante/:idSemestre
-     * Emula: RegistroRepository.getHistorialPorSemestre
-     */
     async function getHistorialPorSemestre(req, res) {
         const { idEstudiante, idSemestre } = req.params;
-        
-        // ¡¡¡LA PUTA CIRUGÍA #2 ESTÁ AQUÍ!!!
-        // ¡Cambié 'I.estado AS estadoDB' por 'I.estado AS estado'!
-        // ¡Ahora tu 'HistorialMateria.fromMap' (que busca 'map['estado']') va a funcionar!
         const sql = `
             SELECT 
                 M.nombre AS nombre_materia,
@@ -124,40 +127,6 @@ module.exports = function(getDb) {
             res.json(historial); 
         } catch (error) {
             console.error('Error al obtener historial por semestre:', error.message);
-            res.status(500).json({ error: 'Error interno del servidor.' });
-        }
-    }
-
-    // ... (El resto de los POSTs de mierda se quedan igual) ...
-    async function inscribirEstudiante(req, res) {
-        const { idEstudiante, idParalelo, idMateria, idSemestreActual } = req.body;
-        if (!idEstudiante || !idParalelo || !idMateria || !idSemestreActual) {
-            return res.status(400).json({ error: 'Faltan campos requeridos (idEstudiante, idParalelo, idMateria, idSemestreActual).' });
-        }
-        try {
-            if (await isEnrolledInSubject(idEstudiante, idMateria, idSemestreActual)) {
-                return res.status(409).json({ error: 'Ya está inscrito en otro paralelo de esta materia.' });
-            }
-            if (await checkScheduleConflict(idEstudiante, idParalelo, idSemestreActual)) {
-                return res.status(409).json({ error: 'Existe un choque de horario con una materia ya inscrita.' });
-            }
-            if (!await cumpleRequisitosParaMateria(idEstudiante, idMateria)) {
-                return res.status(403).json({ error: 'No cumple los requisitos. Debe enviar una solicitud.' });
-            }
-            const db = getDb();
-            const result = await db.run(
-                'INSERT INTO Inscripciones (id_estudiante, id_paralelo, estado, fecha_inscripcion) VALUES (?, ?, ?, ?)',
-                [idEstudiante, idParalelo, 'Cursando', new Date().toISOString()]
-            );
-            res.status(201).json({ 
-                message: 'Inscripción exitosa.', 
-                id_inscripcion: result.lastID 
-            });
-        } catch (error) {
-            console.error('Error en inscribirEstudiante:', error.message);
-            if (error.message.includes('UNIQUE constraint failed')) {
-                return res.status(409).json({ error: 'Restricción ÚNICA fallida (ya inscrito o solicitud pendiente).' });
-            }
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
@@ -178,29 +147,6 @@ module.exports = function(getDb) {
             res.json({ message: 'Materia retirada exitosamente.' });
         } catch (error) {
             console.error('Error en retirarMateria:', error.message);
-            res.status(500).json({ error: 'Error interno del servidor.' });
-        }
-    }
-    async function enviarSolicitud(req, res) {
-        const { idEstudiante, idParalelo, motivo } = req.body; 
-        if (!idEstudiante || !idParalelo || !motivo) {
-            return res.status(400).json({ error: 'Faltan campos (idEstudiante, idParalelo, motivo).' });
-        }
-        try {
-            const db = getDb();
-            const result = await db.run(
-                'INSERT INTO Solicitudes_Inscripcion (id_estudiante, id_paralelo, motivo, estado, fecha_solicitud) VALUES (?, ?, ?, ?, ?)',
-                [idEstudiante, idParalelo, motivo, 'En Espera', new Date().toISOString()]
-            );
-            res.status(201).json({ 
-                message: 'Solicitud enviada exitosamente.', 
-                id_solicitud: result.lastID
-            });
-        } catch (error) {
-            console.error('Error en enviarSolicitud:', error.message);
-            if (error.message.includes('UNIQUE constraint failed')) {
-                return res.status(409).json({ error: 'Restricción ÚNICA fallida (ya inscrito o solicitud pendiente).' });
-            }
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
@@ -226,6 +172,7 @@ module.exports = function(getDb) {
     }
     async function getHorarioEstudiante(req, res) {
         const { idEstudiante, nombreSemestre } = req.params;
+        const nombreSemestreEscapado = decodeURIComponent(nombreSemestre); // Decodifica el nombre
         const sql = `
             SELECT 
                 H.dia, H.hora_inicio, H.hora_fin, 
@@ -248,10 +195,108 @@ module.exports = function(getDb) {
         `;
         try {
             const db = getDb();
-            const horario = await db.all(sql, [idEstudiante, nombreSemestre]);
+            const horario = await db.all(sql, [idEstudiante, nombreSemestreEscapado]);
             res.json(horario);
         } catch (error) {
             console.error('Error en getHorarioEstudiante:', error.message);
+            res.status(500).json({ error: 'Error interno del servidor.' });
+        }
+    }
+
+    /**
+     * POST /api/registro/solicitud/enviar
+     * (Este ahora solo lo puede llamar el estudiante DIRECTAMENTE)
+     */
+    async function enviarSolicitud(req, res) {
+        const { idEstudiante, idParalelo, motivo } = req.body; 
+        if (!idEstudiante || !idParalelo || !motivo) {
+            return res.status(400).json({ error: 'Faltan campos (idEstudiante, idParalelo, motivo).' });
+        }
+        try {
+            // ¡Llama a la función interna, carajo!
+            const result = await _enviarSolicitudInterna(idEstudiante, idParalelo, motivo);
+            res.status(201).json({ 
+                message: 'Solicitud enviada exitosamente.', 
+                id_solicitud: result.lastID
+            });
+        } catch (error) {
+            console.error('Error en enviarSolicitud:', error.message);
+            if (error.message.includes('UNIQUE constraint failed')) {
+                return res.status(409).json({ error: 'Restricción ÚNICA fallida (ya inscrito o solicitud pendiente).' });
+            }
+            res.status(500).json({ error: 'Error interno del servidor.' });
+        }
+    }
+
+    /**
+     * POST /api/registro/inscribir
+     * ¡¡¡LA PUTA CIRUGÍA PRINCIPAL ESTÁ AQUÍ!!!
+     */
+    async function inscribirEstudiante(req, res) {
+        const { idEstudiante, idParalelo, idMateria, idSemestreActual } = req.body;
+        if (!idEstudiante || !idParalelo || !idMateria || !idSemestreActual) {
+            return res.status(400).json({ error: 'Faltan campos requeridos (idEstudiante, idParalelo, idMateria, idSemestreActual).' });
+        }
+        
+        try {
+            // 1. Validar si ya está inscrito en la misma materia (¡Esto sigue siendo un error duro!)
+            if (await isEnrolledInSubject(idEstudiante, idMateria, idSemestreActual)) {
+                return res.status(409).json({ error: 'Ya está inscrito en otro paralelo de esta materia.' });
+            }
+
+            // 2. Validar requisitos (¡Esto sigue siendo un error duro!)
+            if (!await cumpleRequisitosParaMateria(idEstudiante, idMateria)) {
+                return res.status(403).json({ error: 'No cumple los requisitos. Debe enviar una solicitud.' });
+            }
+
+            // ¡¡¡LA PUTA LÓGICA NUEVA, CARAJO!!!
+            // 3. Validar choque de horario
+            if (await checkScheduleConflict(idEstudiante, idParalelo, idSemestreActual)) {
+                // ¡¡¡HAY UN PUTO CHOQUE!!!
+                // ¡A la mierda el 409! ¡Vamos a enviar una solicitud en su lugar!
+                console.log(`LOG: Choque de horario detectado para Estudiante ${idEstudiante}. Forzando solicitud...`);
+                
+                try {
+                    // ¡Llamamos a la función interna, carajo!
+                    const result = await _enviarSolicitudInterna(
+                        idEstudiante, 
+                        idParalelo, 
+                        "Solicitud automática por choque de horario"
+                    );
+                    
+                    // ¡Devolvemos un 202 (Aceptado) que significa "OK, pero no es una inscripción, es una solicitud"
+                    return res.status(202).json({ 
+                        message: '¡Choque de horario detectado! Se ha enviado una solicitud en tu nombre.', 
+                        id_solicitud: result.lastID 
+                    });
+                
+                } catch (solicitudError) {
+                     // Si la solicitud falla (ej: ya había una solicitud)
+                    if (solicitudError.message.includes('UNIQUE constraint failed')) {
+                        return res.status(409).json({ error: 'Restricción ÚNICA fallida (ya inscrito o solicitud pendiente).' });
+                    }
+                    throw solicitudError; // Lanza el error interno
+                }
+            }
+
+            // 4. ¡¡¡NO HAY CHOQUE!!! ¡Inscribir a la mierda!
+            const db = getDb();
+            const result = await db.run(
+                'INSERT INTO Inscripciones (id_estudiante, id_paralelo, estado, fecha_inscripcion) VALUES (?, ?, ?, ?)',
+                [idEstudiante, idParalelo, 'Cursando', new Date().toISOString()]
+            );
+
+            // ¡¡¡Devolvemos 201 (Creado)!!!
+            res.status(201).json({ 
+                message: 'Inscripción exitosa.', 
+                id_inscripcion: result.lastID 
+            });
+
+        } catch (error) {
+            console.error('Error en inscribirEstudiante:', error.message);
+            if (error.message.includes('UNIQUE constraint failed')) {
+                return res.status(409).json({ error: 'Restricción ÚNICA fallida (ya inscrito o solicitud pendiente).' });
+            }
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }

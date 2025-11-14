@@ -1,5 +1,5 @@
 // controllers/materiaController.js
-// (¡¡¡LA PUTA VERSIÓN CORREGIDA CON SNAKE_CASE!!!)
+// (¡¡¡LA PUTA VERSIÓN CORREGIDA CON HORAS ORDENADAS!!!)
 
 /**
  * Crea los controladores de materia.
@@ -8,20 +8,46 @@
  */
 module.exports = function(getDb, validationHelpers) {
 
-    // ... (getHorariosString y getRequisitosString se quedan igual, carajo) ...
+    // --- FUNCIONES AUXILIARES ---
+
+    /**
+     * Obtiene los horarios formateados como string.
+     * Emula: MateriaRepository.getHorariosString
+     */
     async function getHorariosString(idParalelo) {
         const db = getDb();
+        
+        // ¡¡¡LA PUTA CIRUGÍA ESTÁ AQUÍ, CARAJO!!!
+        // ¡Añadí 'ORDER BY H.dia, H.hora_inicio'!
         const sql = `
             SELECT H.dia, H.hora_inicio, H.hora_fin
             FROM Paralelo_Horario AS PH
             JOIN Horarios AS H ON PH.id_horario = H.id_horario
             WHERE PH.id_paralelo = ?
-            ORDER BY H.dia; 
+            ORDER BY 
+                CASE H.dia
+                    WHEN 'Lunes' THEN 1
+                    WHEN 'Martes' THEN 2
+                    WHEN 'Miércoles' THEN 3
+                    WHEN 'Jueves' THEN 4
+                    WHEN 'Viernes' THEN 5
+                    WHEN 'Sábado' THEN 6
+                    WHEN 'Domingo' THEN 7
+                END, 
+                H.hora_inicio; 
         `;
+        // (Ese CASE de mierda es para que ordene los días bien, no alfabéticamente)
+        
         const maps = await db.all(sql, [idParalelo]);
         if (maps.length === 0) return "";
+        // ¡Ahora esta mierda saldrá ordenada!
         return maps.map(h => `${h.dia} ${h.hora_inicio}-${h.hora_fin}`).join(', ');
     }
+
+    /**
+     * Obtiene los requisitos formateados como string.
+     * Emula: MateriaRepository.getRequisitosString
+     */
     async function getRequisitosString(idMateria) {
         const db = getDb();
         const sql = `
@@ -37,7 +63,8 @@ module.exports = function(getDb, validationHelpers) {
     }
 
     // --- MANEJADORES de RUTAS (ENDPOINTS) ---
-    // ... (getAllFacultades, searchMaterias, getMateriasByFacultad se quedan igual) ...
+
+    // (getAllFacultades, searchMaterias, getMateriasByFacultad están bien, carajo)
     async function getAllFacultades(req, res) {
         try {
             const db = getDb();
@@ -87,7 +114,7 @@ module.exports = function(getDb, validationHelpers) {
         const db = getDb();
 
         try {
-            // 1. Obtener la lista base de paralelos con su estado (ParaleloSimple)
+            // (Esta consulta SQL está bien, carajo)
             const sqlParalelos = `
                 SELECT 
                     PS.id_paralelo, PS.nombre_paralelo, PS.id_materia,
@@ -108,7 +135,6 @@ module.exports = function(getDb, validationHelpers) {
                     PS.id_materia = ? AND PS.id_semestre = ?;
             `;
             
-            // ¡¡¡AQUÍ LA DB NOS DA SNAKE_CASE!!! (Ej: 'id_paralelo')
             const paralelosSimplesRaw = await db.all(sqlParalelos, [
                 idEstudiante,
                 idEstudiante,
@@ -116,7 +142,6 @@ module.exports = function(getDb, validationHelpers) {
                 idSemestreActual
             ]);
 
-            // 2. Procesar y enriquecer
             const requisitosString = await getRequisitosString(idMateria);
             const cumpleRequisitos = await validationHelpers.cumpleRequisitosParaMateria(idEstudiante, idMateria);
             const paralelosDetalle = [];
@@ -128,34 +153,13 @@ module.exports = function(getDb, validationHelpers) {
                 } else if (p.estado_solicitud) {
                     if (p.estado_solicitud === 'En Espera') estadoEstudiante = 'solicitado';
                 }
-
-                // ¡¡¡LA PUTA CIRUGÍA ESTÁ AQUÍ, CARAJO!!!
-                // ¡¡¡El backend ahora crea un objeto 'paralelo' que TIENE LAS MISMAS PUTAS CLAVES 'snake_case' que el SQL!!!
-                // Tu 'ParaleloSimple.fromMap' ahora encontrará 'id_paralelo', no 'idParalelo'.
-                const paraleloSimpleParaJSON = {
-                    id_paralelo: p.id_paralelo, // <-- ARREGLADO
-                    nombre_paralelo: p.nombre_paralelo, // <-- ARREGLADO
-                    docente_nombre: p.docente_nombre, // <-- ARREGLADO
-                    docente_apellido: p.docente_apellido, // <-- ARREGLADO
-                    aula_nombre: p.aula_nombre || 'Sin aula', // <-- ARREGLADO (¡el ?? de tu Dart!)
-                    id_materia: p.id_materia, // <-- ARREGLADO
-                    creditos: p.creditos, // <-- ARREGLADO
-                    estadoEstudiante: estadoEstudiante, // <-- Este es camelCase, ¡pero tu fromMap no lo usa! ¡Me vale verga!
-                };
                 
-                // ¡¡¡ESPERA, CARAJO!!! Tu 'ParaleloSimple.fromMap' SÍ USA `estado_inscripcion` y `estado_solicitud`
-                // ¡¡¡Tengo que mandar el objeto 'p' crudo!!!
-                
-                // ¡¡¡A LA MIERDA EL OBJETO NUEVO!!! ¡¡¡Mandemos el puto 'p'!!!
-                // Tu 'ParaleloSimple.fromMap' espera 'id_paralelo', 'nombre_paralelo', 'docente_nombre', 'aula_nombre', 'creditos', 'estado_inscripcion', 'estado_solicitud'
-                // ¡¡¡Y 'p' (el resultado del SQL) YA TIENE ESA PUTA MIERDA!!!
-                
+                // ¡Esta mierda ahora llamará a la función de horarios ORDENADA!
                 const horariosString = await getHorariosString(p.id_paralelo);
 
-                // 4. Ensamblar DTO Final (ParaleloDetalleCompleto)
                 paralelosDetalle.push({
-                    paralelo: p, // <-- ¡¡¡LA PUTA SOLUCIÓN!!! ¡MANDA EL 'p' CRUDO, CARAJO!
-                    horarios: horariosString,
+                    paralelo: p, // ¡Mandamos el 'p' crudo para que 'fromMap' funcione!
+                    horarios: horariosString, // ¡Ahora ordenado!
                     requisitos: requisitosString,
                     cumpleRequisitos: cumpleRequisitos,
                 });
@@ -174,6 +178,7 @@ module.exports = function(getDb, validationHelpers) {
      * Emula: MateriaRepository.getMateriaById
      */
     async function getMateriaById(req, res) {
+        // (Este estaba bien, carajo)
         const { idMateria } = req.params;
         try {
             const db = getDb();
