@@ -1,16 +1,7 @@
 // controllers/materiaController.js
-// (¡¡¡LA PUTA VERSIÓN LIMPIA, CARAJO!!!)
-
-// ¡¡¡IMPORTA EL PUTO SERVICIO NUEVO!!!
 const validationService = require('../utils/validationService');
 
-/**
- * Crea los controladores de materia.
- * @param {Function} getDb - Función para obtener la instancia de la BD.
- */
 module.exports = function(getDb) {
-
-    // (getHorariosString y getRequisitosString se quedan igual, carajo)
     async function getHorariosString(idParalelo) {
         const db = getDb();
         const sql = `
@@ -47,18 +38,65 @@ module.exports = function(getDb) {
         const nombres = maps.map(m => m.nombre).join(', ');
         return `Requiere: ${nombres}`;
     }
-
-    // (getAllFacultades, searchMaterias, getMateriasByFacultad se quedan igual)
-    async function getAllFacultades(req, res) { /* ... (código igual) ... */ }
-    async function searchMaterias(req, res) { /* ... (código igual) ... */ }
-    async function getMateriasByFacultad(req, res) { /* ... (código igual) ... */ }
-    async function getMateriaById(req, res) { /* ... (código igual) ... */ }
-
-    // (¡¡¡CIRUGÍA #3!!! Ahora usa el 'validationService')
+    async function getAllFacultades(req, res) {
+        try {
+            const db = getDb();
+            const facultades = await db.all('SELECT * FROM Facultades');
+            res.json(facultades);
+        } catch (error) {
+            console.error('Error al obtener facultades:', error.message);
+            res.status(500).json({ error: 'Error interno del servidor.' });
+        }
+    }
+    async function searchMaterias(req, res) {
+        const { query } = req.params;
+        const searchTerm = `%${query}%`;
+        try {
+            const db = getDb();
+            const materias = await db.all(
+                'SELECT * FROM Materias WHERE nombre LIKE ? OR codigo LIKE ?',
+                [searchTerm, searchTerm]
+            );
+            res.json(materias);
+        } catch (error) {
+            console.error('Error en searchMaterias:', error.message);
+            res.status(500).json({ error: 'Error interno del servidor.' });
+        }
+    }
+    async function getMateriasByFacultad(req, res) {
+        const { idFacultad } = req.params;
+        try {
+            const db = getDb();
+            const materias = await db.all(
+                'SELECT * FROM Materias WHERE id_facultad = ?',
+                [idFacultad]
+            );
+            res.json(materias);
+        } catch (error) {
+            console.error('Error en getMateriasByFacultad:', error.message);
+            res.status(500).json({ error: 'Error interno del servidor.' });
+        }
+    }
+    async function getMateriaById(req, res) {
+        const { idMateria } = req.params;
+        try {
+            const db = getDb();
+            const materia = await db.get(
+                'SELECT * FROM Materias WHERE id_materia = ?',
+                [idMateria]
+            );
+            if (!materia) {
+                return res.status(404).json({ error: 'Materia no encontrada' });
+            }
+            res.json(materia);
+        } catch (error) {
+            console.error('Error en getMateriaById:', error.message);
+            res.status(500).json({ error: 'Error interno del servidor.' });
+        }
+    }
     async function getParalelosDetalle(req, res) {
         const { idMateria, idEstudiante, idSemestreActual } = req.params;
         const db = getDb();
-
         try {
             const sqlParalelos = `
                 SELECT 
@@ -86,8 +124,8 @@ module.exports = function(getDb) {
                 idSemestreActual
             ]);
 
-            // ¡¡¡VALIDACIONES (AHORA USAN 'validationService' Y PASAN 'db'!!!)
             const requisitosString = await getRequisitosString(idMateria);
+            // ¡¡¡USA 'validationService' Y PASA LA PUTA 'db'!!!
             const cumpleRequisitos = await validationService.cumpleRequisitosParaMateria(db, idEstudiante, idMateria);
             const yaInscritoEnMateria = await validationService.isEnrolledInSubject(db, idEstudiante, idMateria, idSemestreActual);
             const yaTieneSolicitud = await validationService.hasExistingSolicitation(db, idEstudiante, idMateria, idSemestreActual);
@@ -108,6 +146,7 @@ module.exports = function(getDb) {
                 const hayChoque = await validationService.checkScheduleConflict(db, idEstudiante, p.id_paralelo, idSemestreActual);
                 const horariosString = await getHorariosString(p.id_paralelo);
 
+                // ¡¡¡AHORA SÍ MANDA LA PUTA MIERDA COMPLETA!!!
                 paralelosDetalle.push({
                     paralelo: p, 
                     estado_calculado: estadoEstudiante,
@@ -123,9 +162,6 @@ module.exports = function(getDb) {
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
-
-    // ¡¡¡EL PUTO RETURN!!!
-    // ¡¡¡YA NO TIENE LA MIERDA QUE CAUSABA EL 'is not defined'!!!
     return {
         getAllFacultades,
         searchMaterias,

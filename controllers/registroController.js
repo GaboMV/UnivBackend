@@ -1,16 +1,7 @@
 // controllers/registroController.js
-// (¡¡¡LA PUTA VERSIÓN LIMPIA, CARAJO!!!)
-
-// ¡¡¡IMPORTA EL PUTO SERVICIO NUEVO!!!
 const validationService = require('../utils/validationService');
 
-/**
- * Crea los controladores de registro académico.
- * @param {Function} getDb - Función para obtener la instancia de la BD.
- */
 module.exports = function(getDb) {
-    
-    // --- FUNCIONES AUXILIARES (Solo la de enviar solicitud) ---
     async function _enviarSolicitudInterna(idEstudiante, idParalelo, motivo) {
         const db = getDb();
         const result = await db.run(
@@ -19,10 +10,6 @@ module.exports = function(getDb) {
         );
         return result;
     }
-
-    // --- MANEJADORES DE RUTAS (ENDPOINTS) ---
-
-    // (getSemestresInscritos y getHistorialPorSemestre se quedan igual)
     async function getSemestresInscritos(req, res) {
         const { idEstudiante } = req.params;
         const sql = `
@@ -64,11 +51,9 @@ module.exports = function(getDb) {
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
-    
-    // (¡¡¡CIRUGÍA #1!!!)
     async function getHorarioEstudiante(req, res) {
         const { idEstudiante, nombreSemestre } = req.params;
-        const nombreSemestreEscapado = decodeURIComponent(nombreSemestre);
+        const nombreSemestreEscapado = decodeURIComponent(nombreSemestre); 
         const sql = `
             SELECT 
                 H.dia, H.hora_inicio, H.hora_fin, 
@@ -109,8 +94,6 @@ module.exports = function(getDb) {
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
-
-    // (retirarMateria y retirarSolicitud se quedan igual)
     async function retirarMateria(req, res) {
         const { idEstudiante, idParalelo } = req.body; 
         if (!idEstudiante || !idParalelo) {
@@ -151,8 +134,6 @@ module.exports = function(getDb) {
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
-
-    // (enviarSolicitud se queda igual)
     async function enviarSolicitud(req, res) {
         const { idEstudiante, idParalelo, motivo } = req.body; 
         if (!idEstudiante || !idParalelo || !motivo) {
@@ -172,36 +153,23 @@ module.exports = function(getDb) {
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
-
-    // (¡¡¡CIRUGÍA #2!!! Ahora usa el 'validationService')
     async function inscribirEstudiante(req, res) {
         const { idEstudiante, idParalelo, idMateria, idSemestreActual } = req.body;
         if (!idEstudiante || !idParalelo || !idMateria || !idSemestreActual) {
             return res.status(400).json({ error: 'Faltan campos requeridos.' });
         }
-        
         try {
-            const db = getDb(); // ¡Pasa la puta DB a las funciones!
-
-            // REGLA 4: ¿Inscrito en otro paralelo? ¡A LA MIERDA!
+            const db = getDb(); 
             if (await validationService.isEnrolledInSubject(db, idEstudiante, idMateria, idSemestreActual)) {
                 return res.status(409).json({ error: 'Ya estás inscrito en esta materia en otro paralelo.' });
             }
-            
-            // REGLA (EXTRA): ¿Solicitud pendiente? ¡A LA MIERDA!
             if (await validationService.hasExistingSolicitation(db, idEstudiante, idMateria, idSemestreActual)) {
                 return res.status(409).json({ error: 'Ya tienes una solicitud pendiente para esta materia. Cancela la solicitud original si quieres cambiar de paralelo.' });
             }
-
-            // REGLA 2: ¿No cumples requisitos? ¡Es una SOLICITUD!
             if (!await validationService.cumpleRequisitosParaMateria(db, idEstudiante, idMateria)) {
                 console.log(`LOG: No cumple requisitos. Estudiante ${idEstudiante}. Forzando solicitud...`);
                 try {
-                    const result = await _enviarSolicitudInterna(
-                        idEstudiante, 
-                        idParalelo, 
-                        "Solicitud automática por requisitos pendientes"
-                    );
+                    const result = await _enviarSolicitudInterna(idEstudiante, idParalelo, "Solicitud automática por requisitos pendientes");
                     return res.status(202).json({
                         message: 'No cumples los requisitos. Se ha enviado una solicitud.', 
                         id_solicitud: result.lastID 
@@ -213,16 +181,10 @@ module.exports = function(getDb) {
                     throw e;
                 }
             }
-
-            // REGLA 3: ¿Hay choque de horario? ¡Es una SOLICITUD!
             if (await validationService.checkScheduleConflict(db, idEstudiante, idParalelo, idSemestreActual)) {
                 console.log(`LOG: Choque de horario detectado para Estudiante ${idEstudiante}. Forzando solicitud...`);
                 try {
-                    const result = await _enviarSolicitudInterna(
-                        idEstudiante, 
-                        idParalelo, 
-                        "Solicitud automática por choque de horario"
-                    );
+                    const result = await _enviarSolicitudInterna(idEstudiante, idParalelo, "Solicitud automática por choque de horario");
                     return res.status(202).json({
                         message: '¡Choque de horario detectado! Se ha enviado una solicitud en tu nombre.', 
                         id_solicitud: result.lastID 
@@ -234,8 +196,6 @@ module.exports = function(getDb) {
                     throw e;
                 }
             }
-
-            // REGLA 1: ¡INSCRITO, CARAJO!
             const result = await db.run(
                 'INSERT INTO Inscripciones (id_estudiante, id_paralelo, estado, fecha_inscripcion) VALUES (?, ?, ?, ?)',
                 [idEstudiante, idParalelo, 'Cursando', new Date().toISOString()]
@@ -244,7 +204,6 @@ module.exports = function(getDb) {
                 message: 'Inscripción exitosa.', 
                 id_inscripcion: result.lastID 
             });
-
         } catch (error) {
             console.error('Error en inscribirEstudiante:', error.message);
             if (error.message.includes('UNIQUE constraint failed')) {
@@ -253,9 +212,6 @@ module.exports = function(getDb) {
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
-
-    // ¡¡¡EL PUTO RETURN!!!
-    // ¡¡¡YA NO EXPORTAMOS LAS PUTAS FUNCIONES DE VALIDACIÓN!!!
     return {
         getSemestresInscritos,
         getHistorialPorSemestre,

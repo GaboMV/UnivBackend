@@ -1,9 +1,4 @@
 // utils/validationService.js
-// (¡¡¡LA PUTA VERSIÓN CORREGIDA QUE SÍ EXPORTA TODO!!!)
-
-// ... (Todas tus funciones de mierda están aquí arriba: 
-// tieneMateriaAprobada, cumpleRequisitosParaMateria, 
-// isEnrolledInSubject, checkScheduleConflict) ...
 async function tieneMateriaAprobada(db, idEstudiante, idMateriaPrevia) {
     const result = await db.get(
         `SELECT I.estado
@@ -15,7 +10,6 @@ async function tieneMateriaAprobada(db, idEstudiante, idMateriaPrevia) {
     );
     return !!result;
 }
-
 async function cumpleRequisitosParaMateria(db, idEstudiante, idMateriaACursar) {
     const requisitos = await db.all(
         'SELECT id_materia_previa FROM Requisitos WHERE id_materia_cursar = ?',
@@ -29,7 +23,6 @@ async function cumpleRequisitosParaMateria(db, idEstudiante, idMateriaACursar) {
     }
     return true;
 }
-
 async function isEnrolledInSubject(db, idEstudiante, idMateria, idSemestreActual) {
     const sql = `
         SELECT I.id_inscripcion
@@ -44,7 +37,6 @@ async function isEnrolledInSubject(db, idEstudiante, idMateria, idSemestreActual
     const result = await db.get(sql, [idEstudiante, idMateria, idSemestreActual]);
     return !!result;
 }
-
 async function checkScheduleConflict(db, idEstudiante, idParaleloNuevo, idSemestreActual) {
     const nuevosHorariosMap = await db.all(
         'SELECT id_horario FROM Paralelo_Horario WHERE id_paralelo = ?',
@@ -68,8 +60,6 @@ async function checkScheduleConflict(db, idEstudiante, idParaleloNuevo, idSemest
     const hayChoque = nuevosHorariosIds.some(id => inscritosSet.has(id));
     return hayChoque;
 }
-
-// ¡¡¡ESTA ES LA PUTA FUNCIÓN QUE FALTABA!!!
 async function hasExistingSolicitation(db, idEstudiante, idMateria, idSemestreActual) {
     const sql = `
         SELECT SOL.id_solicitud
@@ -84,12 +74,10 @@ async function hasExistingSolicitation(db, idEstudiante, idMateria, idSemestreAc
     const result = await db.get(sql, [idEstudiante, idMateria, idSemestreActual]);
     return !!result;
 }
-
-// ¡Exporta toda esta puta mierda!
 module.exports = {
     tieneMateriaAprobada,
     cumpleRequisitosParaMateria,
     isEnrolledInSubject,
     checkScheduleConflict,
-    hasExistingSolicitation // <-- ¡¡¡LA PUTA LÍNEA QUE FALTABA!!!
+    hasExistingSolicitation // <-- ¡LA PUTA CLAVE QUE FALTABA!
 };
