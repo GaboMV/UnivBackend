@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Admin - Solicitudes</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 20px; 
+            background: #f0f2f5; 
+            color: #333;
+        }
+        .container { 
+            max-width: 900px; 
+            margin: 0 auto; 
+        }
+        h1 { 
+            text-align: center; 
+            color: #0052CC; 
+            margin-bottom: 30px;
+        }
+        .loading {
+            text-align: center;
+            font-style: italic;
+            color: #666;
+        }
+        .card { 
+            background: white; 
+            padding: 20px; 
+            margin-bottom: 15px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+            display: flex; 
+            flex-direction: row;
+            justify-content: space-between; 
+            align-items: center; 
+            transition: transform 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+        }
+        .info h3 { 
+            margin: 0 0 5px 0; 
+            color: #333; 
+            font-size: 1.1em;
+        }
+        .info p { 
+            margin: 3px 0; 
+            color: #666; 
+            font-size: 0.95em;
+        }
+        .info .motivo {
+            color: #e67e22;
+            font-weight: bold;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+        .actions button { 
+            padding: 10px 20px; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            color: white; 
+            font-size: 0.9em;
+            transition: background 0.3s;
+        }
+        .btn-accept { background: #2ecc71; }
+        .btn-accept:hover { background: #27ae60; }
+        
+        .btn-reject { background: #e74c3c; }
+        .btn-reject:hover { background: #c0392b; }
+
+        /* Respuesta visual para listas vacías */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Panel de Administración Universitaria</h1>
+    <div id="lista-solicitudes">
+        <p class="loading">Cargando solicitudes pendientes...</p>
+    </div>
+</div>
+
+<script>
+    // 🚨 BASE URL de tu backend en Render
+    const BASE_URL = 'https://univbackend.onrender.com/api/registro/admin'; 
+
+    async function cargarSolicitudes() {
+        const container = document.getElementById('lista-solicitudes');
+        
+        try {
+            // Llama al endpoint GET que definimos en registroRoutes.js
+            const res = await fetch(`${BASE_URL}/solicitudes`);
+            
+            if (!res.ok) throw new Error('Error al conectar con el servidor');
+
+            const data = await res.json();
+            container.innerHTML = '';
+
+            if (data.length === 0) {
+                container.innerHTML = '<div class="empty-state"><h3>No hay solicitudes pendientes</h3><p>Todo está al día.</p></div>';
+                return;
+            }
+
+            data.forEach(sol => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                // Renderizamos la tarjeta con la info del estudiante y la materia
+                card.innerHTML = `
+                    <div class="info">
+                        <h3>${sol.estudiante} (ID: ${sol.id_estudiante})</h3>
+                        <p>Solicita: <strong>${sol.materia}</strong></p>
+                        <p>Paralelo: <strong>${sol.nombre_paralelo}</strong></p>
+                        <p class="motivo">Motivo: ${sol.motivo}</p>
+                        <p style="font-size: 0.8em; color: #999">Fecha: ${new Date(sol.fecha_solicitud).toLocaleString()}</p>
+                    </div>
+                    <div class="actions">
+                        <button class="btn-accept" onclick="resolver(${sol.id}, ${sol.id_estudiante}, '${sol.materia}', 'Aceptada', ${sol.id_paralelo})">Aceptar</button>
+                        <button class="btn-reject" onclick="resolver(${sol.id}, ${sol.id_estudiante}, '${sol.materia}', 'Rechazada', ${sol.id_paralelo})">Rechazar</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        } catch (e) {
+            console.error("Error cargando:", e);
+            container.innerHTML = `<div class="empty-state" style="color: red">Error al cargar datos: ${e.message}<br>Verifica que el backend esté corriendo.</div>`;
+        }
+    }
+
+    async function resolver(idSolicitud, idEstudiante, materia, accion, idParalelo) {
+        if(!confirm(`¿Estás seguro de que quieres marcar esta solicitud como ${accion.toUpperCase()}?`)) return;
+
+        try {
+            // Llama al endpoint POST que definimos en registroRoutes.js
+            const response = await fetch(`${BASE_URL}/resolver`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id_solicitud: idSolicitud,
+                    id_estudiante: idEstudiante,
+                    materia: materia,
+                    accion: accion, // 'Aceptada' o 'Rechazada'
+                    id_paralelo: idParalelo 
+                })
+            });
+
+            const data = await response.json();
+            
+            if(data.success) {
+                alert(`✅ Solicitud ${accion} correctamente.\nEl estudiante recibirá la notificación.`);
+                cargarSolicitudes(); // Recargar la lista para quitar la solicitud procesada
+            } else {
+                alert('❌ Error del servidor: ' + (data.error || 'Desconocido'));
+            }
+        } catch (e) {
+            alert('❌ Error de conexión. Intenta nuevamente.');
+            console.error(e);
+        }
+    }
+
+    // Cargar solicitudes al iniciar la página
+    window.onload = cargarSolicitudes;
+    
+    // Recargar automáticamente cada 30 segundos (opcional)
+    setInterval(cargarSolicitudes, 30000);
+</script>
+
+</body>
+</html>

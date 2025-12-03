@@ -2,9 +2,8 @@ const sqlite = require('sqlite');
 const sqlite3 = require('sqlite3');
 const bcrypt = require('bcryptjs');
 
-const HASH_JPEREZ = 'contraseña123'; 
-
-const HASH_CONTRA_123 = '$2a$10$g.N.AmJclS86uEw/WgJ8FuQ8jCRGkYyJt6.MzbMh/wN.FSs.APa42';
+const HASH_CONTRA_123 = '$2a$12$Jkp/Hs6GRVKgLNmDHGOaeOP9iIfTasavDZwh6zQrT57yDAjwER1m6';
+const HASH_JPEREZ = HASH_CONTRA_123;
 
 
 async function initializeDatabase() {
