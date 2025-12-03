@@ -18,5 +18,7 @@ module.exports = (registroController, authMiddleware) => {
     router.post('/resolver', registroController.resolverSolicitud);
 router.get('/solicitudes/resueltas/:idEstudiante', authMiddleware, registroController.getSolicitudesResueltas);
     router.delete('/solicitudes/resueltas/:idSolicitud', authMiddleware, registroController.deleteSolicitudResuelta);
+    router.get('/notificaciones/:idEstudiante', authMiddleware, registroController.getNotificaciones);
+    router.delete('/notificaciones/:idNotificacion', authMiddleware, registroController.borrarNotificacion);
     return router;
 };

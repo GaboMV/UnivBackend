@@ -3,129 +3,185 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel Admin - Solicitudes</title>
+    <title>Panel Admin - Gestión Académica</title>
+    <!-- Librería Socket.IO para ver actualizaciones en tiempo real -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             padding: 20px; 
             background: #f0f2f5; 
-            color: #333;
-        }
-        .container { 
-            max-width: 900px; 
+            color: #333; 
+            max-width: 1000px; 
             margin: 0 auto; 
         }
-        h1 { 
-            text-align: center; 
-            color: #0052CC; 
+        h1, h2 { text-align: center; color: #0052CC; }
+        
+        /* --- Estilos del Panel de Anuncios --- */
+        .anuncio-box {
+            background: #fff; 
+            padding: 20px; 
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
             margin-bottom: 30px;
+            border-left: 5px solid #e67e22;
         }
-        .loading {
-            text-align: center;
-            font-style: italic;
-            color: #666;
+        .anuncio-form { display: flex; gap: 10px; flex-wrap: wrap; }
+        .anuncio-form input, .anuncio-form textarea {
+            flex: 1; 
+            padding: 12px; 
+            border: 1px solid #ccc; 
+            border-radius: 6px;
+            font-size: 1em;
         }
+        .anuncio-form button {
+            background: #e67e22; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px;
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: bold;
+            font-size: 1em;
+            transition: background 0.2s;
+        }
+        .anuncio-form button:hover { background: #d35400; }
+
+        /* --- Estilos de las Tarjetas de Solicitud --- */
         .card { 
             background: white; 
             padding: 20px; 
             margin-bottom: 15px; 
             border-radius: 12px; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
             display: flex; 
-            flex-direction: row;
             justify-content: space-between; 
-            align-items: center; 
+            align-items: center;
             transition: transform 0.2s;
         }
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
-        }
-        .info h3 { 
-            margin: 0 0 5px 0; 
-            color: #333; 
-            font-size: 1.1em;
-        }
-        .info p { 
-            margin: 3px 0; 
-            color: #666; 
-            font-size: 0.95em;
-        }
-        .info .motivo {
-            color: #e67e22;
-            font-weight: bold;
-            font-size: 0.9em;
-            margin-top: 5px;
-        }
-        .actions {
-            display: flex;
-            gap: 10px;
-        }
-        .actions button { 
-            padding: 10px 20px; 
-            border: none; 
-            border-radius: 6px; 
-            cursor: pointer; 
-            font-weight: bold; 
-            color: white; 
-            font-size: 0.9em;
-            transition: background 0.3s;
-        }
-        .btn-accept { background: #2ecc71; }
-        .btn-accept:hover { background: #27ae60; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         
-        .btn-reject { background: #e74c3c; }
-        .btn-reject:hover { background: #c0392b; }
+        .info h3 { margin: 0 0 5px 0; color: #333; }
+        .info p { margin: 2px 0; color: #555; }
+        .info small { display: block; margin-top: 5px; color: #999; }
+        .motivo { color: #e67e22; font-weight: bold; }
 
-        /* Respuesta visual para listas vacías */
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: #888;
+        .actions { display: flex; gap: 10px; }
+        
+        .btn-accept { 
+            background: #2ecc71; color: white; border: none; 
+            padding: 10px 20px; border-radius: 6px; cursor: pointer; 
+            font-weight: bold; transition: background 0.2s;
         }
+        .btn-accept:hover { background: #27ae60; }
+
+        .btn-reject { 
+            background: #e74c3c; color: white; border: none; 
+            padding: 10px 20px; border-radius: 6px; cursor: pointer; 
+            font-weight: bold; transition: background 0.2s;
+        }
+        .btn-reject:hover { background: #c0392b; }
+        
+        .loading { text-align: center; color: #666; margin-top: 20px; font-style: italic; }
+        .empty-state { text-align: center; padding: 30px; color: #888; background: #fff; border-radius: 12px;}
+        
+        .status-bar {
+            text-align: center;
+            font-size: 0.9em;
+            margin-bottom: 20px;
+            color: #555;
+        }
+        #socket-status { font-weight: bold; color: #e74c3c; }
+        #socket-status.connected { color: #2ecc71; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h1>Panel de Administración Universitaria</h1>
-    <div id="lista-solicitudes">
-        <p class="loading">Cargando solicitudes pendientes...</p>
+    <h1>Panel de Administración</h1>
+    
+    <div class="status-bar">
+        Estado del Servidor: <span id="socket-status">Conectando...</span>
     </div>
-</div>
+
+    <!-- SECCIÓN 1: ANUNCIOS GLOBALES -->
+    <div class="anuncio-box">
+        <h2>📢 Enviar Notificación General</h2>
+        <p style="margin-top: 0; color: #666; font-size: 0.9em;">
+            Esto enviará una alerta a TODOS los estudiantes conectados y guardará la notificación en su historial.
+        </p>
+        <div class="anuncio-form">
+            <input type="text" id="anuncioTitulo" placeholder="Título (Ej: Inicio de Clases)" style="flex: 1; min-width: 200px;">
+            <input type="text" id="anuncioMensaje" placeholder="Mensaje (Ej: Las inscripciones comienzan mañana a las 8:00...)" style="flex: 2; min-width: 300px;">
+            <button onclick="enviarAnuncio()">ENVIAR A TODOS</button>
+        </div>
+    </div>
+
+    <hr style="border: 0; border-top: 1px solid #ddd; margin: 30px 0;">
+
+    <!-- SECCIÓN 2: SOLICITUDES PENDIENTES -->
+    <h2>Solicitudes Pendientes</h2>
+    <div id="lista-solicitudes">
+        <p class="loading">Cargando solicitudes...</p>
+    </div>
 
 <script>
-    // 🚨 BASE URL de tu backend en Render
-    const BASE_URL = 'https://univbackend.onrender.com/api/registro'; 
+    // 🚨 URL DEL BACKEND EN RENDER
+    const RENDER_URL = 'https://univbackend.onrender.com';
+    const API_BASE = RENDER_URL + '/api/registro'; 
 
+    // --- CONFIGURACIÓN DEL SOCKET.IO ---
+    const socket = io(RENDER_URL);
+    const statusEl = document.getElementById('socket-status');
+
+    socket.on('connect', () => {
+        statusEl.innerText = 'Conectado (En Vivo)';
+        statusEl.classList.add('connected');
+        // Identificarse como admin (ID ficticio para que el server sepa quién es)
+        socket.emit('identificarse', 9999);
+    });
+
+    socket.on('disconnect', () => {
+        statusEl.innerText = 'Desconectado';
+        statusEl.classList.remove('connected');
+    });
+
+    // Escuchar si otro admin resuelve algo para actualizar la lista automáticamente
+    socket.on('nueva_notificacion', (data) => {
+        console.log("Evento recibido:", data);
+        if (data.tipo === 'solicitud_aceptada' || data.tipo === 'solicitud_rechazada') {
+            cargarSolicitudes(); // Recargar la lista si algo cambió
+        }
+    });
+
+    // --- FUNCIONES DEL PANEL ---
+
+    // 1. CARGAR LA LISTA DE SOLICITUDES (GET)
     async function cargarSolicitudes() {
         const container = document.getElementById('lista-solicitudes');
         
         try {
-            // Llama al endpoint GET que definimos en registroRoutes.js
-            const res = await fetch(`${BASE_URL}/solicitudes`);
+            const res = await fetch(`${API_BASE}/solicitudes`);
             
-            if (!res.ok) throw new Error('Error al conectar con el servidor');
+            if (!res.ok) throw new Error(`Error ${res.status}: No se pudo cargar`);
 
             const data = await res.json();
             container.innerHTML = '';
-
+            
             if (data.length === 0) {
-                container.innerHTML = '<div class="empty-state"><h3>No hay solicitudes pendientes</h3><p>Todo está al día.</p></div>';
+                container.innerHTML = '<div class="empty-state">No hay solicitudes pendientes. Todo limpio.</div>';
                 return;
             }
 
             data.forEach(sol => {
                 const card = document.createElement('div');
                 card.className = 'card';
-                // Renderizamos la tarjeta con la info del estudiante y la materia
                 card.innerHTML = `
                     <div class="info">
-                        <h3>${sol.estudiante} (ID: ${sol.id_estudiante})</h3>
+                        <h3>${sol.estudiante} <span style="font-size:0.8em; color:#777">(ID: ${sol.id_estudiante})</span></h3>
                         <p>Solicita: <strong>${sol.materia}</strong></p>
                         <p>Paralelo: <strong>${sol.nombre_paralelo}</strong></p>
                         <p class="motivo">Motivo: ${sol.motivo}</p>
-                        <p style="font-size: 0.8em; color: #999">Fecha: ${new Date(sol.fecha_solicitud).toLocaleString()}</p>
+                        <small>Fecha: ${new Date(sol.fecha_solicitud).toLocaleString()}</small>
                     </div>
                     <div class="actions">
                         <button class="btn-accept" onclick="resolver(${sol.id}, ${sol.id_estudiante}, '${sol.materia}', 'Aceptada', ${sol.id_paralelo})">Aceptar</button>
@@ -135,46 +191,76 @@
                 container.appendChild(card);
             });
         } catch (e) {
-            console.error("Error cargando:", e);
-            container.innerHTML = `<div class="empty-state" style="color: red">Error al cargar datos: ${e.message}<br>Verifica que el backend esté corriendo.</div>`;
+            container.innerHTML = `<p style="color:red; text-align:center">Error al cargar: ${e.message}</p>`;
         }
     }
 
-    async function resolver(idSolicitud, idEstudiante, materia, accion, idParalelo) {
-        if(!confirm(`¿Estás seguro de que quieres marcar esta solicitud como ${accion.toUpperCase()}?`)) return;
+    // 2. RESOLVER SOLICITUD (POST)
+    async function resolver(id, idEst, materia, accion, idParalelo) {
+        if(!confirm(`¿Estás seguro de marcar esta solicitud como ${accion.toUpperCase()}?`)) return;
 
         try {
-            // Llama al endpoint POST que definimos en registroRoutes.js
-            const response = await fetch(`${BASE_URL}/resolver`, {
+            const res = await fetch(`${API_BASE}/resolver`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id_solicitud: idSolicitud,
-                    id_estudiante: idEstudiante,
-                    materia: materia,
-                    accion: accion, // 'Aceptada' o 'Rechazada'
+                body: JSON.stringify({ 
+                    id_solicitud: id, 
+                    id_estudiante: idEst, 
+                    materia: materia, 
+                    accion: accion, 
                     id_paralelo: idParalelo 
                 })
             });
-
-            const data = await response.json();
             
-            if(data.success) {
-                alert(`✅ Solicitud ${accion} correctamente.\nEl estudiante recibirá la notificación.`);
-                cargarSolicitudes(); // Recargar la lista para quitar la solicitud procesada
+            const data = await res.json();
+            
+            if (res.ok) {
+                alert(`✅ Solicitud ${accion}. El estudiante ha sido notificado.`);
+                cargarSolicitudes(); // Recargar la lista
             } else {
-                alert('❌ Error del servidor: ' + (data.error || 'Desconocido'));
+                alert(`❌ Error del servidor: ${data.error}`);
             }
-        } catch (e) {
-            alert('❌ Error de conexión. Intenta nuevamente.');
+        } catch (e) { 
+            alert("Error de conexión. Revisa tu internet."); 
             console.error(e);
         }
     }
 
-    // Cargar solicitudes al iniciar la página
+    // 3. ENVIAR ANUNCIO GLOBAL (POST)
+    async function enviarAnuncio() {
+        const titulo = document.getElementById('anuncioTitulo').value;
+        const mensaje = document.getElementById('anuncioMensaje').value;
+
+        if(!titulo || !mensaje) return alert("¡Escribe un título y un mensaje, carajo!");
+
+        if(!confirm("¿Enviar este mensaje a TODOS los estudiantes?")) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/anuncio`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ titulo, mensaje })
+            });
+            
+            const data = await res.json();
+
+            if (res.ok) {
+                alert(`✅ ${data.message}`);
+                document.getElementById('anuncioTitulo').value = '';
+                document.getElementById('anuncioMensaje').value = '';
+            } else {
+                alert(`❌ Error: ${data.error}`);
+            }
+        } catch (e) {
+            alert("Error de conexión al enviar anuncio.");
+            console.error(e);
+        }
+    }
+
+    // Cargar al inicio
     window.onload = cargarSolicitudes;
     
-    // Recargar automáticamente cada 30 segundos (opcional)
+    // Polling de seguridad cada 30s (por si el socket falla)
     setInterval(cargarSolicitudes, 30000);
 </script>
 
