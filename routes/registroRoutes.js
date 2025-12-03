@@ -16,6 +16,7 @@ module.exports = (registroController, authMiddleware) => {
     router.get('/horario/:idEstudiante/:nombreSemestre', authMiddleware, registroController.getHorarioEstudiante);
     router.get('/solicitudes', registroController.getSolicitudesPendientes);
     router.post('/resolver', registroController.resolverSolicitud);
-
+router.get('/solicitudes/resueltas/:idEstudiante', authMiddleware, registroController.getSolicitudesResueltas);
+    router.delete('/solicitudes/resueltas/:idSolicitud', authMiddleware, registroController.deleteSolicitudResuelta);
     return router;
 };

@@ -383,7 +383,48 @@ module.exports = function(getDb) {
         }
     }
 
+async function getSolicitudesResueltas(req, res) {
+        const { idEstudiante } = req.params;
+        const sql = `
+            SELECT 
+                SOL.id_solicitud, SOL.estado, SOL.fecha_respuesta, SOL.motivo, 
+                PS.nombre_paralelo, M.nombre AS nombre_materia,
+                PS.id_materia, PS.id_paralelo
+            FROM Solicitudes_Inscripcion AS SOL
+            JOIN Paralelos_Semestre AS PS ON SOL.id_paralelo = PS.id_paralelo
+            JOIN Materias AS M ON PS.id_materia = M.id_materia
+            WHERE SOL.id_estudiante = ? AND SOL.estado != 'En Espera'
+            ORDER BY SOL.fecha_respuesta DESC;
+        `;
+        try {
+            const db = getDb();
+            const solicitudes = await db.all(sql, [idEstudiante]);
+            res.json(solicitudes);
+        } catch (error) {
+            console.error('Error al obtener solicitudes resueltas:', error.message);
+            res.status(500).json({ error: 'Error interno del servidor.' });
+        }
+    }
 
+    async function deleteSolicitudResuelta(req, res) {
+        const { idSolicitud } = req.params;
+        const { idEstudiante } = req.body; 
+        try {
+            const db = getDb();
+            const result = await db.run(
+                "DELETE FROM Solicitudes_Inscripcion WHERE id_solicitud = ? AND id_estudiante = ? AND estado != 'En Espera'",
+                [idSolicitud, idEstudiante]
+            );
+
+            if (result.changes === 0) {
+                return res.status(404).json({ error: 'Notificación no encontrada o no pertenece al usuario.' });
+            }
+            res.json({ message: 'Notificación marcada como leída.' });
+        } catch (error) {
+            console.error('Error al borrar notificación:', error.message);
+            res.status(500).json({ error: 'Error interno del servidor.' });
+        }
+    }
     return {
         getSemestresInscritos,
         getHistorialPorSemestre,
@@ -393,6 +434,8 @@ module.exports = function(getDb) {
         retirarSolicitud,
         getHorarioEstudiante,
         getSolicitudesPendientes,
-        resolverSolicitud
+        resolverSolicitud,
+        getSolicitudesResueltas,
+        deleteSolicitudResuelta
     };
 };
