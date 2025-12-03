@@ -212,6 +212,98 @@ module.exports = function(getDb) {
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
+
+    async function getSolicitudesPendientes(req, res) {
+        const sql = `
+            SELECT 
+                S.id_solicitud as id,
+                S.id_estudiante,
+                S.id_paralelo,
+                S.motivo,
+                S.fecha_solicitud,
+                E.nombre || ' ' || E.apellido as estudiante,
+                M.nombre as materia,
+                P.nombre_paralelo
+            FROM Solicitudes_Inscripcion AS S
+            JOIN Estudiantes AS E ON S.id_estudiante = E.id_estudiante
+            JOIN Paralelos_Semestre AS P ON S.id_paralelo = P.id_paralelo
+            JOIN Materias AS M ON P.id_materia = M.id_materia
+            WHERE S.estado = 'En Espera'
+            ORDER BY S.fecha_solicitud DESC;
+        `;
+        try {
+            const db = getDb();
+            const solicitudes = await db.all(sql);
+            res.json(solicitudes);
+        } catch (error) {
+            console.error('Error obteniendo solicitudes:', error);
+            res.status(500).json({ error: 'Error al cargar solicitudes' });
+        }
+    }
+
+    // 2. POST: Resolver (Aceptar/Rechazar) y Notificar
+    async function resolverSolicitud(req, res) {
+        const { id_solicitud, id_estudiante, id_paralelo, accion, materia } = req.body;
+        // accion debe ser 'Aceptada' o 'Rechazada'
+
+        const db = getDb();
+        const io = req.io; // El socket que pasamos desde server.js
+
+        try {
+            if (accion === 'Aceptada') {
+                // 1. Inscribir forzosamente (INSERT)
+                await db.run(
+                    'INSERT OR IGNORE INTO Inscripciones (id_estudiante, id_paralelo, estado, fecha_inscripcion) VALUES (?, ?, ?, ?)',
+                    [id_estudiante, id_paralelo, 'Cursando', new Date().toISOString()]
+                );
+
+                // 2. Crear Notificación
+                await db.run(
+                    'INSERT INTO Notificaciones (id_estudiante, mensaje, fecha, leida, tipo, id_paralelo_asociado) VALUES (?, ?, ?, 0, ?, ?)',
+                    [id_estudiante, `Tu solicitud para ${materia} fue ACEPTADA.`, new Date().toISOString(), 'solicitud_aceptada', id_paralelo]
+                );
+
+                // 3. Borrar la solicitud pendiente
+                await db.run('DELETE FROM Solicitudes_Inscripcion WHERE id_solicitud = ?', [id_solicitud]);
+
+                // 4. 🔥 ENVIAR SOCKET (Push Notification)
+                if (io) {
+                    io.to(`user_${id_estudiante}`).emit('nueva_notificacion', {
+                        mensaje: `Tu solicitud para ${materia} fue ACEPTADA.`,
+                        tipo: 'solicitud_aceptada',
+                        id_paralelo_asociado: id_paralelo
+                    });
+                }
+
+            } else {
+                // RECHAZADA
+                // 1. Crear Notificación
+                await db.run(
+                    'INSERT INTO Notificaciones (id_estudiante, mensaje, fecha, leida, tipo, id_paralelo_asociado) VALUES (?, ?, ?, 0, ?, ?)',
+                    [id_estudiante, `Tu solicitud para ${materia} fue RECHAZADA.`, new Date().toISOString(), 'solicitud_rechazada', id_paralelo]
+                );
+
+                // 2. Borrar la solicitud
+                await db.run('DELETE FROM Solicitudes_Inscripcion WHERE id_solicitud = ?', [id_solicitud]);
+
+                // 3. 🔥 ENVIAR SOCKET
+                if (io) {
+                    io.to(`user_${id_estudiante}`).emit('nueva_notificacion', {
+                        mensaje: `Tu solicitud para ${materia} fue RECHAZADA.`,
+                        tipo: 'solicitud_rechazada',
+                        id_paralelo_asociado: id_paralelo
+                    });
+                }
+            }
+
+            res.json({ success: true, message: `Solicitud ${accion} correctamente` });
+
+        } catch (error) {
+            console.error('Error resolviendo solicitud:', error);
+            res.status(500).json({ error: 'Error interno al resolver' });
+        }
+    }
+
     return {
         getSemestresInscritos,
         getHistorialPorSemestre,
@@ -219,6 +311,8 @@ module.exports = function(getDb) {
         retirarMateria,
         enviarSolicitud,
         retirarSolicitud,
-        getHorarioEstudiante
+        getHorarioEstudiante,
+        getSolicitudesPendientes,
+        resolverSolicitud
     };
 };
