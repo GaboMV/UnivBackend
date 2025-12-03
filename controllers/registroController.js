@@ -303,6 +303,86 @@ module.exports = function(getDb) {
             res.status(500).json({ error: 'Error interno al resolver' });
         }
     }
+     async function getSolicitudesPendientes(req, res) {
+        const sql = `
+            SELECT 
+                S.id_solicitud as id,
+                S.id_estudiante,
+                S.id_paralelo,
+                S.motivo,
+                S.fecha_solicitud,
+                E.nombre || ' ' || E.apellido as estudiante,
+                M.nombre as materia,
+                P.nombre_paralelo
+            FROM Solicitudes_Inscripcion AS S
+            JOIN Estudiantes AS E ON S.id_estudiante = E.id_estudiante
+            JOIN Paralelos_Semestre AS P ON S.id_paralelo = P.id_paralelo
+            JOIN Materias AS M ON P.id_materia = M.id_materia
+            WHERE S.estado = 'En Espera'
+            ORDER BY S.fecha_solicitud DESC;
+        `;
+        try {
+            const db = getDb();
+            const solicitudes = await db.all(sql);
+            res.json(solicitudes);
+        } catch (error) {
+            console.error('Error obteniendo solicitudes:', error);
+            res.status(500).json({ error: 'Error al cargar solicitudes' });
+        }
+    }
+    
+    /**
+     * ¡¡¡NUEVO!!! Resuelve la solicitud (Aceptar/Rechazar) y NOTIFICA
+     * Nota: Recibe 'req.io' del middleware
+     */
+    async function resolverSolicitud(req, res) {
+        // Obtenemos el Socket.IO del objeto request que inyectamos en server.js
+        const io = req.io; 
+        const { id_solicitud, id_estudiante, materia, accion, id_paralelo } = req.body;
+        const db = getDb();
+
+        try {
+            if (accion === 'Aceptada') {
+                // 1. Inscribir forzosamente (INSERT)
+                await db.run(
+                    'INSERT OR IGNORE INTO Inscripciones (id_estudiante, id_paralelo, estado, fecha_inscripcion) VALUES (?, ?, ?, ?)',
+                    [id_estudiante, id_paralelo, 'Cursando', new Date().toISOString()]
+                );
+            }
+            
+            // 2. Actualizar el estado de la solicitud
+            await db.run(
+                "UPDATE Solicitudes_Inscripcion SET estado = ?, fecha_respuesta = ? WHERE id_solicitud = ?",
+                [accion, new Date().toISOString(), id_solicitud]
+            );
+
+            // 3. 🔥 ENVIAR SOCKET (Push Notification)
+            const mensajeNoti = accion === 'Aceptada' 
+                ? `Tu solicitud para ${materia} fue ACEPTADA.`
+                : `Tu solicitud para ${materia} fue RECHAZADA.`;
+
+            if (io) {
+                // Emitimos el evento al usuario específico (user_ID)
+                io.to(`user_${id_estudiante}`).emit('nueva_notificacion', {
+                    mensaje: mensajeNoti,
+                    fecha: new Date().toISOString(),
+                    tipo: accion === 'Aceptada' ? 'solicitud_aceptada' : 'solicitud_rechazada',
+                    id_paralelo_asociado: id_paralelo
+                });
+                console.log(`SOCKET: Notificación enviada a user_${id_estudiante}`);
+            }
+
+            // 4. Respuesta al panel de administración
+            res.json({ success: true, message: `Solicitud ${accion} correctamente` });
+
+        } catch (error) {
+            console.error('Error resolviendo solicitud:', error);
+            // El error 500 era porque esta función crasheaba al no existir.
+            // Ahora devolvemos 500 si la base de datos falla.
+            res.status(500).json({ error: 'Error interno al resolver' });
+        }
+    }
+
 
     return {
         getSemestresInscritos,

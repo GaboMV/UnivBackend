@@ -14,8 +14,8 @@ module.exports = (registroController, authMiddleware) => {
     router.post('/solicitud/enviar', authMiddleware, registroController.enviarSolicitud);
     router.post('/solicitud/retirar', authMiddleware, registroController.retirarSolicitud);
     router.get('/horario/:idEstudiante/:nombreSemestre', authMiddleware, registroController.getHorarioEstudiante);
-    router.get('/admin/solicitudes', registroController.getSolicitudesPendientes);
-    router.post('/admin/resolver', registroController.resolverSolicitud);
+    router.get('/solicitudes', registroController.getSolicitudesPendientes);
+    router.post('/resolver', registroController.resolverSolicitud);
 
     return router;
 };
