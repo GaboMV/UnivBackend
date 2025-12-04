@@ -287,10 +287,47 @@ module.exports = function(getDb) {
         }
     }
 
+    async function getEstadoInscripciones(req, res) {
+        try {
+            const db = getDb();
+            const config = await db.get("SELECT valor FROM Sistema WHERE clave = 'inscripciones_activas'");
+            // Si no existe, asumimos true (abierto)
+            const activas = config ? config.valor === 'true' : true;
+            res.json({ inscripciones_activas: activas });
+        } catch (error) {
+            res.status(500).json({ error: 'Error al obtener estado.' });
+        }
+    }
+
+    async function toggleInscripciones(req, res) {
+        const io = req.io;
+        const db = getDb();
+        try {
+            // 1. Obtener estado actual
+            const config = await db.get("SELECT valor FROM Sistema WHERE clave = 'inscripciones_activas'");
+            const estadoActual = config ? config.valor === 'true' : true;
+            const nuevoEstado = !estadoActual; // Invertir
+
+            // 2. Actualizar DB
+            await db.run("INSERT OR REPLACE INTO Sistema (clave, valor) VALUES ('inscripciones_activas', ?)", [nuevoEstado.toString()]);
+
+            // 3. 🔥 GRITAR POR SOCKET GLOBALMENTE
+            if (io) {
+                io.emit('cambio_estado_sistema', { inscripciones_activas: nuevoEstado });
+            }
+
+            res.json({ success: true, inscripciones_activas: nuevoEstado });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ error: 'Error al cambiar estado.' });
+        }
+    }
+
     return {
         getSemestresInscritos, getHistorialPorSemestre, inscribirEstudiante,
         retirarMateria, enviarSolicitud, retirarSolicitud, getHorarioEstudiante,
         getNotificaciones, borrarNotificacion, // Rutas App
-        getSolicitudesPendientes, resolverSolicitud, enviarAnuncioGlobal // Rutas Admin
+        getSolicitudesPendientes, resolverSolicitud, enviarAnuncioGlobal ,
+        getEstadoInscripciones, toggleInscripciones// Rutas Admin
     };
 };

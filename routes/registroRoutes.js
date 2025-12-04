@@ -26,5 +26,8 @@ module.exports = (registroController, authMiddleware) => {
     router.post('/resolver', registroController.resolverSolicitud);
     router.post('/anuncio', registroController.enviarAnuncioGlobal);
 
+    router.get('/sistema/estado', registroController.getEstadoInscripciones); 
+    router.post('/sistema/toggle', registroController.toggleInscripciones);
+
     return router;
 };
