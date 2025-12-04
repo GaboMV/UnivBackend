@@ -11,7 +11,8 @@ async function initializeDatabase() {
     });
 
     console.log("Conexión a SQLite establecida.");
-
+const estPerezId = 10;
+    const estSilvaId = 20;
     const createSchema = [
         `CREATE TABLE IF NOT EXISTS Estudiantes (id_estudiante INTEGER PRIMARY KEY, usuario TEXT NOT NULL UNIQUE, contrasena TEXT NOT NULL, nombre TEXT NOT NULL, apellido TEXT NOT NULL);`,
         `CREATE TABLE IF NOT EXISTS Docentes (id_docente INTEGER PRIMARY KEY, nombre TEXT NOT NULL, apellido TEXT NOT NULL);`,
