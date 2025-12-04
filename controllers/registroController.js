@@ -170,6 +170,19 @@ module.exports = function(getDb) {
                 const result = await _enviarSolicitudInterna(idEstudiante, idParalelo, "Solicitud automática por choque");
                 return res.status(202).json({ message: 'Choque de horario. Solicitud enviada.', id_solicitud: result.lastID });
             }
+            if (await validationService.isParaleloFull(db, idParalelo)) {
+             console.log(`LOG: Paralelo ${idParalelo} lleno. Forzando solicitud...`);
+             try {
+                const result = await _enviarSolicitudInterna(idEstudiante, idParalelo, "Solicitud automática por cupos llenos");
+                return res.status(202).json({ // 202 Accepted
+                    message: 'El paralelo está lleno. Se ha enviado una solicitud de sobrecupo.', 
+                    id_solicitud: result.lastID 
+                });
+            } catch (e) {
+                 // manejo de error unique...
+                 throw e;
+            }
+        }
             const result = await db.run('INSERT INTO Inscripciones (id_estudiante, id_paralelo, estado, fecha_inscripcion) VALUES (?, ?, ?, ?)', [idEstudiante, idParalelo, 'Cursando', new Date().toISOString()]);
             res.status(201).json({ message: 'Inscripción exitosa.', id_inscripcion: result.lastID });
         } catch (error) {

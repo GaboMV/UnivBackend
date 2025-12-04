@@ -74,10 +74,28 @@ async function hasExistingSolicitation(db, idEstudiante, idMateria, idSemestreAc
     const result = await db.get(sql, [idEstudiante, idMateria, idSemestreActual]);
     return !!result;
 }
+async function isParaleloFull(db, idParalelo) {
+    // 1. Obtener cupo máximo
+    const paralelo = await db.get(
+        "SELECT cupo_maximo FROM Paralelos_Semestre WHERE id_paralelo = ?", 
+        [idParalelo]
+    );
+    if (!paralelo) return true; // Si no existe, asume que está lleno para no cagarla.
+
+    // 2. Contar inscritos
+    const conteo = await db.get(
+        "SELECT COUNT(*) as total FROM Inscripciones WHERE id_paralelo = ? AND estado = 'Cursando'",
+        [idParalelo]
+    );
+    
+    // 3. Comparar
+    return conteo.total >= paralelo.cupo_maximo;
+}
 module.exports = {
     tieneMateriaAprobada,
     cumpleRequisitosParaMateria,
     isEnrolledInSubject,
     checkScheduleConflict,
-    hasExistingSolicitation // <-- ¡LA PUTA CLAVE QUE FALTABA!
+    hasExistingSolicitation ,
+    isParaleloFull// <-- ¡LA PUTA CLAVE QUE FALTABA!
 };

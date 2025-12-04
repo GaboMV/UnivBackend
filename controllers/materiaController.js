@@ -1,6 +1,3 @@
-// controllers/materiaController.js
-// (¡¡¡LA PUTA VERSIÓN QUE ELIMINA DUPLICADOS, CARAJO!!!)
-
 const validationService = require('../utils/validationService');
 
 module.exports = function(getDb) {
@@ -35,7 +32,7 @@ module.exports = function(getDb) {
         return `Requiere: ${nombres}`;
     }
 
-    // --- RUTAS GET ---
+    // --- RUTAS GET BÁSICAS ---
     async function getAllFacultades(req, res) {
         try {
             const db = getDb();
@@ -78,16 +75,17 @@ module.exports = function(getDb) {
         }
     }
 
-    // --- RUTA PRINCIPAL DE PARALELOS (CON LA CORRECCIÓN DE DUPLICADOS) ---
+    // --- RUTA PRINCIPAL DE PARALELOS (CON CUPOS Y DEDUPLICACIÓN) ---
     async function getParalelosDetalle(req, res) {
         const { idMateria, idEstudiante, idSemestreActual } = req.params;
         const db = getDb();
 
         try {
-            // Esta consulta puede traer duplicados si hay historial de solicitudes (varias filas en Solicitudes_Inscripcion)
+            // 1. OBTENER DATOS RAW (Incluye cupo_maximo)
             const sqlParalelos = `
                 SELECT 
-                    PS.id_paralelo, PS.nombre_paralelo, PS.id_materia,
+                    PS.id_paralelo, PS.nombre_paralelo, PS.id_materia, 
+                    PS.cupo_maximo, 
                     D.nombre AS docente_nombre, D.apellido AS docente_apellido,
                     A.nombre AS aula_nombre,
                     M.creditos,
@@ -112,29 +110,24 @@ module.exports = function(getDb) {
                 idSemestreActual
             ]);
 
-            // ¡¡¡AQUÍ ESTÁ LA PUTA MAGIA: DEDUPLICACIÓN!!!
+            // 2. DEDUPLICACIÓN (Limpieza de historial viejo)
             const paralelosUnicos = {};
             paralelosSimplesRaw.forEach(p => {
                 if (!paralelosUnicos[p.id_paralelo]) {
-                    // Si no existe, lo guardamos
                     paralelosUnicos[p.id_paralelo] = p;
                 } else {
-                    // Si ya existe, nos quedamos con el que tenga el estado ACTIVO
-                    // (Priorizamos 'Cursando' o 'En Espera' sobre 'Rechazada' o null)
+                    // Priorizamos el estado activo ('Cursando' o 'En Espera') sobre null o rechazado
                     const actualEsActivo = paralelosUnicos[p.id_paralelo].estado_inscripcion === 'Cursando' || paralelosUnicos[p.id_paralelo].estado_solicitud === 'En Espera';
                     const nuevoEsActivo = p.estado_inscripcion === 'Cursando' || p.estado_solicitud === 'En Espera';
                     
                     if (!actualEsActivo && nuevoEsActivo) {
-                        paralelosUnicos[p.id_paralelo] = p; // Reemplazamos la versión vieja con la activa
+                        paralelosUnicos[p.id_paralelo] = p; 
                     }
                 }
             });
-
-            // Convertimos el objeto de vuelta a lista
             const listaSinDuplicados = Object.values(paralelosUnicos);
 
-
-            // Validaciones globales para la materia
+            // 3. Validaciones Globales
             const requisitosString = await getRequisitosString(idMateria);
             const cumpleRequisitos = await validationService.cumpleRequisitosParaMateria(db, idEstudiante, idMateria);
             const yaInscritoEnMateria = await validationService.isEnrolledInSubject(db, idEstudiante, idMateria, idSemestreActual);
@@ -142,11 +135,10 @@ module.exports = function(getDb) {
             
             const paralelosDetalle = [];
 
-            // Iteramos sobre la lista limpia
+            // 4. Iteración para enriquecer datos (Cupos, Horarios, Estado)
             for (const p of listaSinDuplicados) {
                 let estadoEstudiante = 'ninguno';
                 
-                // Definir estado
                 if (p.estado_inscripcion === 'Cursando') {
                     estadoEstudiante = 'inscrito';
                 } else if (p.estado_solicitud === 'En Espera') {
@@ -157,16 +149,33 @@ module.exports = function(getDb) {
                     estadoEstudiante = 'solicitado_otro';
                 }
                 
+                // Validar Choque
                 const hayChoque = await validationService.checkScheduleConflict(db, idEstudiante, p.id_paralelo, idSemestreActual);
+                
+                // Obtener Horarios
                 const horariosString = await getHorariosString(p.id_paralelo);
 
+                // ¡¡¡CALCULAR CUPOS!!!
+                const conteo = await db.get(
+                    "SELECT COUNT(*) as total FROM Inscripciones WHERE id_paralelo = ? AND estado = 'Cursando'",
+                    [p.id_paralelo]
+                );
+                const cuposOcupados = conteo.total;
+                // Si es null, asumimos 30. Si viene de la DB, usamos ese.
+                const cuposTotales = p.cupo_maximo !== null ? p.cupo_maximo : 30; 
+                const estaLleno = cuposOcupados >= cuposTotales;
+
                 paralelosDetalle.push({
-                    paralelo: p, // Mandamos el objeto crudo, Flutter lo parsea con ParaleloSimple.fromMap
+                    paralelo: p, 
                     estado_calculado: estadoEstudiante,
                     horarios: horariosString,
                     requisitos: requisitosString,
                     cumpleRequisitos: cumpleRequisitos,
                     hayChoque: hayChoque,
+                    // Datos nuevos para el frontend
+                    cupos_totales: cuposTotales,
+                    cupos_ocupados: cuposOcupados,
+                    esta_lleno: estaLleno
                 });
             }
 
@@ -174,7 +183,7 @@ module.exports = function(getDb) {
 
         } catch (error) {
             console.error('Error en getParalelosDetalle:', error.message);
-            res.status(500).json({ error: 'Error interno.' });
+            res.status(500).json({ error: 'Error interno del servidor.' });
         }
     }
 
