@@ -182,7 +182,7 @@ module.exports = function(getDb) {
     async function getNotificaciones(req, res) {
         const { idEstudiante } = req.params;
         // ¡¡¡SIMULACIÓN!!!
-        await _simularDecisiones();
+       // await _simularDecisiones();
         
         const sql = `SELECT * FROM Notificaciones WHERE id_estudiante = ? ORDER BY fecha DESC;`;
         try {
