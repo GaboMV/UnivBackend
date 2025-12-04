@@ -30,8 +30,7 @@ const estPerezId = 10;
         `CREATE TABLE IF NOT EXISTS Inscripciones (id_inscripcion INTEGER PRIMARY KEY, id_estudiante INTEGER NOT NULL, id_paralelo INTEGER NOT NULL, fecha_inscripcion TEXT, estado TEXT NOT NULL, parcial1 REAL, parcial2 REAL, examen_final REAL, segundo_turno REAL, FOREIGN KEY (id_estudiante) REFERENCES Estudiantes(id_estudiante), FOREIGN KEY (id_paralelo) REFERENCES Paralelos_Semestre(id_paralelo), UNIQUE (id_estudiante, id_paralelo));`,
         `CREATE TABLE IF NOT EXISTS Solicitudes_Inscripcion (id_solicitud INTEGER PRIMARY KEY, id_estudiante INTEGER NOT NULL, id_paralelo INTEGER NOT NULL, fecha_solicitud TEXT, fecha_respuesta TEXT, motivo TEXT, estado TEXT NOT NULL, id_docente_revisor INTEGER, FOREIGN KEY (id_estudiante) REFERENCES Estudiantes(id_estudiante), FOREIGN KEY (id_paralelo) REFERENCES Paralelos_Semestre(id_paralelo), FOREIGN KEY (id_docente_revisor) REFERENCES Docentes(id_docente));`,
         `CREATE TABLE IF NOT EXISTS Notificaciones (id_notificacion INTEGER PRIMARY KEY, id_estudiante INTEGER NOT NULL, titulo TEXT NOT NULL, mensaje TEXT NOT NULL, fecha TEXT NOT NULL, leida INTEGER DEFAULT 0, tipo TEXT, id_paralelo_asociado INTEGER, FOREIGN KEY (id_estudiante) REFERENCES Estudiantes(id_estudiante));`
-        `CREATE TABLE IF NOT EXISTS Sistema (clave TEXT PRIMARY KEY, valor TEXT NOT NULL);`
-
+        
         
    
     ];
