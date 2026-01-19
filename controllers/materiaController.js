@@ -185,8 +185,10 @@ module.exports = function(getDb) {
             console.error('Error en getParalelosDetalle:', error.message);
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
-        // --- NUEVA FUNCIÓN PARA EL HORARIO DEL ESTUDIANTE ---
-    async function getHorarioEstudiante(req, res) {
+        // --- NUEVA FUNCIÓN PARA EL HORARIO DEL ESTUDIANTE ---  
+    }
+
+      async function getHorarioEstudiante(req, res) {
         const { idEstudiante, nombreSemestre } = req.params;
         const db = getDb();
 
@@ -237,7 +239,6 @@ module.exports = function(getDb) {
             console.error('Error en getHorarioEstudiante:', error);
             res.status(500).json({ error: 'Error al obtener el horario.' });
         }
-    }
     }
 
     return {
