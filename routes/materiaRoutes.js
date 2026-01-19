@@ -10,6 +10,6 @@ module.exports = (materiaController, authMiddleware) => {
     router.get('/:idMateria', materiaController.getMateriaById);
 
     router.get('/paralelos/:idMateria/:idEstudiante/:idSemestreActual', authMiddleware, materiaController.getParalelosDetalle);
-
+router.get('/estudiante/horario/:idEstudiante/:nombreSemestre', authMiddleware, materiaController.getHorarioEstudiante);
     return router;
 };

@@ -185,6 +185,59 @@ module.exports = function(getDb) {
             console.error('Error en getParalelosDetalle:', error.message);
             res.status(500).json({ error: 'Error interno del servidor.' });
         }
+        // --- NUEVA FUNCIÓN PARA EL HORARIO DEL ESTUDIANTE ---
+    async function getHorarioEstudiante(req, res) {
+        const { idEstudiante, nombreSemestre } = req.params;
+        const db = getDb();
+
+        try {
+            const sql = `
+                SELECT 
+                    H.dia, 
+                    H.hora_inicio, 
+                    H.hora_fin,
+                    M.nombre AS materia_nombre,
+                    M.codigo AS materia_codigo,
+                    A.nombre AS aula_nombre,
+                    D.nombre AS docente_nombre, 
+                    D.apellido AS docente_apellido
+                FROM Inscripciones AS I
+                JOIN Paralelos_Semestre AS PS ON I.id_paralelo = PS.id_paralelo
+                JOIN Materias AS M ON PS.id_materia = M.id_materia
+                JOIN Docentes AS D ON PS.id_docente = D.id_docente
+                LEFT JOIN Aulas AS A ON PS.id_aula = A.id_aula
+                JOIN Paralelo_Horario AS PH ON PS.id_paralelo = PH.id_paralelo
+                JOIN Horarios AS H ON PH.id_horario = H.id_horario
+                -- JOIN OPCIONAL SI NECESITAS FILTRAR POR NOMBRE DE SEMESTRE
+                JOIN Semestres AS S ON PS.id_semestre = S.id_semestre
+                WHERE 
+                    I.id_estudiante = ? 
+                    AND I.estado = 'Cursando' -- Solo lo que está cursando actualmente
+                    AND S.nombre = ? -- Compara con el STRING "1-2024" etc.
+                ORDER BY 
+                    CASE H.dia 
+                        WHEN 'Lunes' THEN 1 
+                        WHEN 'Martes' THEN 2 
+                        WHEN 'Miércoles' THEN 3 
+                        WHEN 'Jueves' THEN 4 
+                        WHEN 'Viernes' THEN 5 
+                        WHEN 'Sábado' THEN 6 
+                        ELSE 7 
+                    END,
+                    H.hora_inicio;
+            `;
+
+            // Ejecutamos la consulta
+            const horario = await db.all(sql, [idEstudiante, nombreSemestre]);
+            
+            // Retornamos el JSON directo (Flutter lo espera así)
+            res.json(horario);
+
+        } catch (error) {
+            console.error('Error en getHorarioEstudiante:', error);
+            res.status(500).json({ error: 'Error al obtener el horario.' });
+        }
+    }
     }
 
     return {
@@ -192,6 +245,7 @@ module.exports = function(getDb) {
         searchMaterias,
         getMateriasByFacultad,
         getParalelosDetalle,
-        getMateriaById
+        getMateriaById,
+        getHorarioEstudiante
     };
 };
