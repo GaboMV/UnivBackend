@@ -47,6 +47,7 @@ const estPerezId = 10;
         // (Para ahorrar espacio asumo que copias las secciones 1 a 6 del archivo anterior aquí)
         // ... 
         // Pongo aquí lo esencial para que funcione si copias todo:
+        await db.run(`INSERT OR IGNORE INTO Sistema (clave, valor) VALUES ('semestre_actual_id', '4');`);
         await db.run(`INSERT OR IGNORE INTO Semestres (id_semestre, nombre) VALUES (1, '2025-1 Verano');`);
         await db.run(`INSERT OR IGNORE INTO Semestres (id_semestre, nombre) VALUES (2, '2025-2 Semestre 1');`);
         await db.run(`INSERT OR IGNORE INTO Semestres (id_semestre, nombre) VALUES (3, '2025-3 Invierno');`);
