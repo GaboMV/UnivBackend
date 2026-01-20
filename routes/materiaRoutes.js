@@ -11,5 +11,5 @@ module.exports = (materiaController, authMiddleware) => {
 
     router.get('/paralelos/:idMateria/:idEstudiante/:idSemestreActual', authMiddleware, materiaController.getParalelosDetalle);
 //
-router.get('/materias/estudiante/horario/:idEstudiante', getHorarioEstudiante);    return router;
+router.get('/materias/estudiante/horario/:idEstudiante', authMiddleware, materiaController.getHorarioEstudiante);    return router;
 };
